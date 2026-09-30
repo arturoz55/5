@@ -31,7 +31,7 @@ async function main() {
   const dec = await token.decimals();
 
   const oracle = await ethers.deployContract("PriceOracle", [deployer.address]);
-  const ex = await ethers.deployContract("LanternExchange", [deployer.address, collateral, await oracle.getAddress(), ethers.parseUnits("5", dec)]);
+  const ex = await ethers.deployContract("NightfallExchange", [deployer.address, collateral, await oracle.getAddress(), ethers.parseUnits("5", dec)]);
   const rc = await ex.deploymentTransaction().wait();
   for (const m of MARKETS) await (await ex.addMarket(m.symbol, 10)).wait();
   await (await oracle.setKeeper(process.env.KEEPER || deployer.address, true)).wait();

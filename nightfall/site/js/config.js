@@ -1,6 +1,6 @@
-// Lantern — static configuration
+// Nightfall — static configuration
 window.LN_CONFIG = {
-  brand: "Lantern",
+  brand: "Nightfall",
   collateral: { symbol: "USDG", decimals: 6 },
   // Order must match scripts/markets.js (market ids are array indexes on chain).
   markets: [

@@ -1,4 +1,4 @@
-// Lantern — interactive pieces: theme, command palette, watchlist & alerts, hero plate,
+// Nightfall — interactive pieces: theme, command palette, watchlist & alerts, hero plate,
 // heatmap, exchange timeline and the calculators on the Tools page.
 (function () {
   const $ = (s, r = document) => r.querySelector(s);

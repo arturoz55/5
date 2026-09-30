@@ -1,4 +1,4 @@
-// Lantern — real wallet connection for EVM wallets.
+// Nightfall — real wallet connection for EVM wallets.
 // Discovers every installed wallet through EIP-6963 (MetaMask, Phantom, Rabby, Coinbase Wallet,
 // Brave, OKX, Trust…), falls back to a legacy window.ethereum, and never touches private keys:
 // all it asks the wallet for is the account list, the chain id and a balance.
@@ -120,7 +120,7 @@
           <div class="wp__head"><div><span class="label">Connect</span><h2 class="h3" style="margin:6px 0 0">Choose a wallet</h2></div><button class="iconbtn" data-close aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
           <ul class="wp__list">${list.length ? list.map((w, i) => `<li><button class="wp__item" data-i="${i}">${safeIcon(w.info.icon) ? `<img src="${esc(safeIcon(w.info.icon))}" alt="" width="32" height="32">` : `<span class="wp__ph">${esc(w.info.name[0] || "?")}</span>`}<span><b>${esc(w.info.name)}</b><small>Detected</small></span></button></li>`).join("") : `<li class="wp__none">No wallet found in this browser.</li>`}</ul>
           ${missing.length ? `<div class="wp__more"><span class="label">${list.length ? "Other wallets" : "Get a wallet"}</span><div class="row" style="gap:6px;margin-top:10px">${missing.map((s) => `<a class="chipbtn" href="${s.url}" target="_blank" rel="noopener">${s.name} ↗</a>`).join("")}</div></div>` : ""}
-          <p class="faint small wp__note">Lantern only asks your wallet for your address and network. It never sees your seed phrase or private keys, and every transaction needs your approval in the wallet.</p>
+          <p class="faint small wp__note">Nightfall only asks your wallet for your address and network. It never sees your seed phrase or private keys, and every transaction needs your approval in the wallet.</p>
         </div>`;
         box.querySelector("[data-close]").onclick = () => close(null);
         box.querySelectorAll("[data-i]").forEach((b) => (b.onclick = async () => {

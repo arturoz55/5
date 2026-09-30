@@ -1,4 +1,4 @@
-// Lantern — full-page backdrop: a real photograph of overcast mountains
+// Nightfall — full-page backdrop: a real photograph of overcast mountains
 // ("Overcast Mountains" by Aleks Dahlberg, CC0) with live weather drawn on top.
 // The weather follows the market: falling prices bring rain and a darker valley,
 // rising ones let light through; liquidations flash lightning.

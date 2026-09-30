@@ -1,4 +1,4 @@
-// Lantern — Zcash corner: interactive explainers about ZEC privacy and issuance.
+// Nightfall — Zcash corner: interactive explainers about ZEC privacy and issuance.
 // Everything here is computed locally from Zcash's published consensus schedule;
 // nothing is fetched and nothing touches a wallet.
 (function () {
@@ -119,7 +119,7 @@
           <p class="faint small" style="margin:12px 0 0">Heights after November 2024 assume the 75-second target block time, so they are estimates. The schedule follows the consensus rules: a slow start over the first 20,000 blocks, Blossom in December 2019, and halvings every 1,680,000 blocks after that.</p>
         </section>
       </div>
-      <p class="note" style="margin-top:22px">Lantern doesn't offer ZEC trading. This page is educational and isn't investment advice.</p>
+      <p class="note" style="margin-top:22px">Nightfall doesn't offer ZEC trading. This page is educational and isn't investment advice.</p>
     </div></section>`;
 
     $$("[data-jump]", main).forEach((a) => a.addEventListener("click", (e) => { e.preventDefault(); const t = document.getElementById(a.dataset.jump); if (t) scrollTo({ top: t.getBoundingClientRect().top + scrollY - 90, behavior: "smooth" }); }));

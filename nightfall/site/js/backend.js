@@ -221,7 +221,7 @@
   // Preview: market data from the simulator; the wallet is real; nothing can be traded yet.
   function preview() {
     const d = demo();
-    const closedMsg = "Trading opens when Lantern's contracts go live. Your wallet is connected, but no funds can move yet.";
+    const closedMsg = "Trading opens when Nightfall's contracts go live. Your wallet is connected, but no funds can move yet.";
     const no = async () => { throw new Error(closedMsg); };
     return {
       ...d, preview: true, demo: false, tradingOpen: false, canFaucet: false, name: "Preview",

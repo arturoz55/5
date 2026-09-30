@@ -4,5 +4,5 @@ artifacts/
 typechain-types/
 coverage/
 .env
-lantern/artifacts/
-lantern/cache/
+nightfall/artifacts/
+nightfall/cache/

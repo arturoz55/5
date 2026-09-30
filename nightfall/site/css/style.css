@@ -1,4 +1,4 @@
-/* Lantern — "porcelain" system: cool glaze grounds, cobalt ink, wide display type.
+/* Nightfall — "porcelain" system: cool glaze grounds, cobalt ink, wide display type.
    Layout: a trading desk of stacked panels; the hero is a spinning generative plate. */
 /* Default look: a dim, stormy mountain day. The light theme is the same valley on a paler overcast day. */
 :root {
@@ -465,3 +465,56 @@ h1, h2, h3 { text-wrap: balance; }
 .footer__mark .logo__img--dark { display: none; }
 :root[data-theme="light"] .footer__mark .logo__img--light { display: none; }
 :root[data-theme="light"] .footer__mark .logo__img--dark { display: inline-block; }
+
+/* sortable headers */
+.sorter { text-align: left; padding: 0; cursor: pointer; }
+.sorter:hover, .sorter.is-on { color: var(--ink); }
+/* notification centre */
+.bell { position: relative; }
+.bell__n { position: absolute; top: -3px; right: -3px; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 9px; background: var(--short); color: #fff; font: 700 10px/17px var(--mono); text-align: center; }
+.notes { position: fixed; z-index: 230; width: min(340px, calc(100vw - 24px)); max-height: 60vh; overflow-y: auto; border-radius: 16px; background: var(--solid); box-shadow: 0 24px 60px -20px rgba(0,0,0,.7), 0 0 0 1px var(--line); animation: pop .2s var(--ease); }
+.notes__head { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--solid); }
+.notes ul { list-style: none; margin: 0; padding: 6px; }
+.notes li { display: flex; gap: 10px; padding: 10px; border-radius: 12px; }
+.notes li.is-new { background: var(--cobalt-soft); }
+.notes li b { display: block; font-size: 14px; }
+.notes li span { display: block; font-size: 13px; color: var(--ink-2); }
+.notes li small { font: 500 11px var(--mono); color: var(--ink-3); }
+.notes__dot { flex: none; width: 8px; height: 8px; margin-top: 6px; border-radius: 50%; background: var(--ink-3); }
+.notes__dot--ok { background: var(--long); } .notes__dot--err { background: var(--short); } .notes__dot--alert { background: var(--warn); }
+.notes__empty { padding: 16px; margin: 0; }
+/* 24h range */
+.range__labels { display: flex; justify-content: space-between; gap: 12px; }
+.range__labels span { display: grid; gap: 4px; }
+.range__mid { text-align: center; }
+.range__bar { position: relative; height: 10px; margin: 12px 0; border-radius: 10px; background: linear-gradient(90deg, var(--short), var(--warn), var(--long)); opacity: .9; }
+.range__bar i { position: absolute; top: 50%; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%; background: var(--solid); box-shadow: 0 0 0 3px var(--ink); transition: left .6s var(--ease); }
+.range__foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+/* correlation */
+.corr { display: grid; grid-template-columns: 44px repeat(var(--n), minmax(0, 1fr)); gap: 3px; }
+.corr__h { font: 500 10px/1 var(--mono); color: var(--ink-3); display: grid; place-items: center; min-height: 22px; }
+.corr__h--row { justify-items: start; }
+.corr__c { aspect-ratio: 1; border-radius: 6px; font: 500 10px var(--mono); color: var(--ink); transition: transform .15s; min-width: 0; }
+.corr__c:hover, .corr__c:focus-visible { transform: scale(1.15); z-index: 1; box-shadow: 0 0 0 2px var(--ink); }
+.corr__read { min-height: 2.6em; margin: 12px 0 0; }
+/* game */
+.game__stage { margin: 16px 0; min-height: 92px; display: grid; align-items: center; padding: 14px; border-radius: 14px; background: var(--bg-3); }
+.game__stage p { margin: 0; }
+.game__live { display: flex; gap: 16px; align-items: center; }
+.game__ring { --p: 0; width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; background: conic-gradient(var(--cobalt) calc(var(--p) * 1%), var(--line-2) 0); flex: none; }
+.game__ring b { width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; background: var(--solid); font-size: 14px; }
+.game__px { font-size: 22px; margin: 4px 0; }
+.game__result { display: grid; gap: 4px; }
+.game__result.is-win b { color: var(--long); } .game__result.is-loss b { color: var(--short); }
+.game__score { display: flex; gap: 22px; align-items: flex-end; flex-wrap: wrap; }
+.game__score span { display: grid; gap: 4px; }
+.game__score b { font-size: 20px; }
+
+/* narrow header: keep logo, bell, wallet and menu on one line */
+@media (max-width: 560px) {
+  .nav__in { gap: 10px; }
+  .nav__right { gap: 6px; }
+  .nav__right > #theme { display: none; }
+  .hide-sm { display: none; }
+  .logo span { font-size: 18px; }
+}

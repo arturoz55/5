@@ -1,4 +1,4 @@
-// Browser audit for Lantern: preview mode with a real-wallet flow (EIP-6963), phone layout,
+// Browser audit for Nightfall: preview mode with a real-wallet flow (EIP-6963), phone layout,
 // and live trading on a local chain through the wallet picker.
 //   npx hardhat node & npx hardhat run scripts/deploy.js --network localhost
 //   npx http-server site -p 8090 -c-1 & node tests/e2e.js
@@ -78,6 +78,14 @@ async function pickWallet(p, name) {
     await p.screenshot({ path: `${OUT}/home.png` });
     await overflow(p, "preview home");
 
+    // sortable board
+    await p.click('[data-sort="price"]');
+    const pxs = await p.$$eval("[data-px]", (els) => els.map((e) => parseFloat(e.textContent.replace(/[$,]/g, ""))));
+    ok(pxs.every((v, i) => i === 0 || pxs[i - 1] >= v), "board: sorts by price (high to low)");
+    await p.click('[data-sort="price"]');
+    const pxs2 = await p.$$eval("[data-px]", (els) => els.map((e) => parseFloat(e.textContent.replace(/[$,]/g, ""))));
+    ok(pxs2.every((v, i) => i === 0 || pxs2[i - 1] <= v), "board: second click reverses the sort");
+
     // wallet picker lists the announced wallet plus install links
     ok(/Connect wallet/.test(await p.textContent("#walletLabel")), "wallet: button reads Connect wallet");
     await p.click("#wallet");
@@ -94,6 +102,12 @@ async function pickWallet(p, name) {
     await p.waitForFunction(() => /1\.0000 ETH/.test(document.querySelector("#wmBal")?.textContent || ""));
     ok(true, "wallet: menu shows the native balance from the wallet");
     await p.screenshot({ path: `${OUT}/wallet-menu.png` });
+    await p.keyboard.press("Escape"); await p.mouse.click(10, 500);
+    await p.click("#bell");
+    await p.waitForSelector(".notes");
+    ok(/Phantom connected/.test(await p.textContent(".notes")), "notifications: wallet event recorded in the bell");
+    await p.mouse.click(10, 500);
+    await p.click("#wallet"); await p.waitForSelector(".wallet-menu");
     await p.click('.wallet-menu [data-a="disc"]');
     ok(/Connect wallet/.test(await p.textContent("#walletLabel")), "wallet: disconnect works");
     await p.click("#wallet"); await pickWallet(p, "Phantom");
@@ -104,6 +118,8 @@ async function pickWallet(p, name) {
     // trading is closed until launch, even with a real wallet
     await p.goto(BASE + "#/trade/BABA");
     await p.waitForSelector("#order");
+    await p.waitForSelector("#range .range__bar");
+    ok(/24h low/.test(await p.textContent("#range")) && /Volatility/.test(await p.textContent("#range")), "trade: 24h range and volatility panel");
     await p.fill("#margin", "500");
     ok(/Trading opens at launch/.test(await p.textContent("#go")) && await p.isDisabled("#go"), "preview: trade button locked until launch");
     ok((await p.locator("#faucet").count()) === 0, "preview: no fake faucet");
@@ -139,6 +155,17 @@ async function pickWallet(p, name) {
     await p.selectOption("#aDir", "below"); await p.fill("#aPrice", String((cur * 2).toFixed(2))); await p.click("#aAdd");
     await toast(p, /BABA is below/, 10000);
     ok(true, "tools: price alert fires");
+    await p.waitForSelector(".corr__c");
+    ok((await p.locator(".corr__c").count()) === 64, "tools: 8×8 correlation matrix");
+    await p.hover('.corr__c[data-i="0"][data-j="1"]');
+    ok(/BABA and PDD/.test(await p.textContent("#corrRead")), "tools: correlation cell explains itself");
+    await p.click('.corr__c[data-i="0"][data-j="2"]');
+    await p.waitForTimeout(500);
+    ok((await p.locator("#cmpPick .chipbtn.on").count()) === 2, "tools: clicking a cell compares that pair");
+    await p.click("#gUp");
+    ok(/you said/.test(await p.textContent("#gStage")), "game: round starts with a countdown");
+    await p.waitForFunction(() => document.querySelector(".game__result"), null, { timeout: 25000 });
+    ok(/[01]\/1/.test(await p.textContent("#gameHost")), "game: round resolves and is scored");
     await p.keyboard.press("Control+k");
     await p.waitForSelector("#cmdkInput");
     await p.fill("#cmdkInput", "nio"); await p.keyboard.press("Enter");

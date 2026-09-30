@@ -5,7 +5,7 @@ const { time } = require("@nomicfoundation/hardhat-network-helpers");
 const U = (n) => ethers.parseUnits(String(n), 6); // USDG
 const P = (n) => ethers.parseUnits(String(n), 8); // prices
 
-describe("Lantern", function () {
+describe("Nightfall", function () {
   let owner, keeper, lp, alice, bob, usdg, oracle, ex;
 
   async function price(id, v) {
@@ -16,7 +16,7 @@ describe("Lantern", function () {
     [owner, keeper, lp, alice, bob] = await ethers.getSigners();
     usdg = await ethers.deployContract("MockUSDG");
     oracle = await ethers.deployContract("PriceOracle", [owner.address]);
-    ex = await ethers.deployContract("LanternExchange", [owner.address, await usdg.getAddress(), await oracle.getAddress(), U(5)]);
+    ex = await ethers.deployContract("NightfallExchange", [owner.address, await usdg.getAddress(), await oracle.getAddress(), U(5)]);
     await oracle.setKeeper(keeper.address, true);
     await ex.addMarket("BABA", 10);
     await ex.addMarket("JD", 10);
@@ -133,7 +133,7 @@ describe("Lantern", function () {
 
   it("vault shares use the collateral's decimals", async () => {
     expect(await ex.decimals()).to.equal(6);
-    expect(await ex.balanceOf(lp.address)).to.equal(U(100_000)); // 1 LNV per USDG at the first deposit
+    expect(await ex.balanceOf(lp.address)).to.equal(U(100_000)); // 1 NFV per USDG at the first deposit
   });
 
   it("vault shares track profit and block withdrawals that would uncover positions", async () => {

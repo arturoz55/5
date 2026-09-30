@@ -9,14 +9,14 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {PriceOracle} from "./PriceOracle.sol";
 
-/// @title LanternExchange
+/// @title NightfallExchange
 /// @notice Isolated-margin long/short positions on a fixed list of equity markets.
 ///         Traders post stablecoin margin and pick 1-10x leverage. A shared liquidity vault
 ///         is the counterparty: it collects losses and fees and pays out profits.
 ///
 ///         Accounting invariant: collateral.balanceOf(this) == vaultAssets + totalMargin.
-///         Vault shares (LNV) are a plain ERC-20; their value is vaultAssets / totalSupply.
-contract LanternExchange is ERC20, Ownable, ReentrancyGuard {
+///         Vault shares (NFV) are a plain ERC-20; their value is vaultAssets / totalSupply.
+contract NightfallExchange is ERC20, Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     uint256 private constant BPS = 10_000;
@@ -81,7 +81,7 @@ contract LanternExchange is ERC20, Ownable, ReentrancyGuard {
     error BadParams();
 
     constructor(address owner_, IERC20 collateral_, PriceOracle oracle_, uint256 minMargin_)
-        ERC20("Lantern Vault Share", "LNV")
+        ERC20("Nightfall Vault Share", "NFV")
         Ownable(owner_)
     {
         collateral = collateral_;
@@ -315,7 +315,7 @@ contract LanternExchange is ERC20, Ownable, ReentrancyGuard {
         emit ParamsSet(feeBps_, maintenanceBps_, rewardBps_, maxNetExposureBps_, minMargin_);
     }
 
-    /// @notice Vault shares use the collateral's decimals, so 1 LNV starts out worth 1 USDG.
+    /// @notice Vault shares use the collateral's decimals, so 1 NFV starts out worth 1 USDG.
     function decimals() public view override returns (uint8) {
         return _shareDecimals;
     }

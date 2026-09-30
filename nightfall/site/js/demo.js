@@ -1,4 +1,4 @@
-// In-browser demo network. Mirrors LanternExchange's integer math (6-decimal collateral,
+// In-browser demo network. Mirrors NightfallExchange's integer math (6-decimal collateral,
 // 8-decimal prices) with a simulated price feed. Nothing here touches real funds.
 (function () {
   const KEY = "ln-demo-v1";

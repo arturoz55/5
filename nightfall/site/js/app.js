@@ -1,4 +1,4 @@
-// Lantern — app shell, router and views
+// Nightfall — app shell, router and views
 (function () {
   const { ethers } = window;
   const CFG = window.LN_CONFIG;
@@ -57,7 +57,7 @@
   }
   async function run(label, fn) {
     const t = toast("wait", label, "Preparing…", 0);
-    try { const r = await fn((m) => t.set(label, m)); t.set("Done", label.replace(/…$/, ""), "ok"); t.done(); return r ?? true; }
+    try { const r = await fn((m) => t.set(label, m)); t.set("Done", label.replace(/…$/, ""), "ok"); t.done(); window.NF_FEAT.notes.push("ok", label.replace(/…$/, ""), "Confirmed"); return r ?? true; }
     catch (e) { console.warn(e); t.set("Couldn't finish", B.friendly(e), "err"); t.done(7000); return false; }
   }
 
@@ -75,7 +75,7 @@
     $("#walletDot").classList.toggle("on", !!W);
     const btn = $("#wallet");
     btn.setAttribute("aria-haspopup", W ? "menu" : "dialog");
-    if (!W) { $("#walletLabel").textContent = "Connect wallet"; btn.querySelector(".wicon")?.remove(); return; }
+    if (!W) { $("#walletLabel").innerHTML = 'Connect<span class="hide-sm"> wallet</span>'; btn.querySelector(".wicon")?.remove(); return; }
     let ic = btn.querySelector(".wicon");
     if (W.icon) { if (!ic) { ic = document.createElement("img"); ic.className = "wicon"; ic.alt = ""; ic.width = 18; ic.height = 18; btn.insertBefore(ic, $("#walletLabel")); } ic.src = W.icon; } else ic?.remove();
     $("#walletLabel").textContent = `${W.account.slice(0, 6)}…${W.account.slice(-4)}`;
@@ -85,10 +85,11 @@
     const s = await window.LN_WALLET.picker(toast);
     if (!s) return false;
     toast("ok", `${s.name} connected`, `${s.account.slice(0, 6)}…${s.account.slice(-4)} on ${s.chainName}`);
+    window.NF_FEAT.notes.push("ok", `${s.name} connected`, `${s.account.slice(0, 6)}…${s.account.slice(-4)} on ${s.chainName}`);
     return true;
   }
   $("#wallet").onclick = () => {
-    if (window.LN_WALLET.state) window.LN_WALLET.menu($("#wallet"), { toast, explorer: state.net.dep?.explorer ? (a) => `${state.net.dep.explorer}/address/${a}` : null, onDisconnect: () => toast("ok", "Wallet disconnected", "") });
+    if (window.LN_WALLET.state) window.LN_WALLET.menu($("#wallet"), { toast, explorer: state.net.dep?.explorer ? (a) => `${state.net.dep.explorer}/address/${a}` : null, onDisconnect: () => { toast("ok", "Wallet disconnected", ""); window.NF_FEAT.notes.push("info", "Wallet disconnected", ""); } });
     else connect();
   };
   window.LN_WALLET.onChange(() => { state.be?.reset?.(); wallet(); document.dispatchEvent(new Event("ln:wallet")); });
@@ -112,13 +113,13 @@
     if (state.unsub) state.unsub();
     state.unsub = state.be.subscribe(async (ev) => {
       if (ev.liquidated?.length) state.sky?.lightning();
-      if (ev.liquidated?.length) ev.liquidated.forEach((p) => toast("err", "Position liquidated", `${state.markets[p.marketId]?.symbol || ""} ${p.isLong ? "long" : "short"} fell below maintenance margin.`, 8000));
+      if (ev.liquidated?.length) ev.liquidated.forEach((p) => { const msg = `${state.markets[p.marketId]?.symbol || ""} ${p.isLong ? "long" : "short"} fell below maintenance margin.`; toast("err", "Position liquidated", msg, 8000); window.NF_FEAT.notes.push("err", "Position liquidated", msg); });
       const prev = state.markets.map((m) => m.price);
       await loadMarkets();
       if (state.be.preview) state.hist.clear(); // simulated feed moves every tick
       updateWeather();
       renderTicker();
-      window.LN_TOOLS.alerts.check(state.markets).forEach((a) => toast("alert", `${a.symbol} is ${a.dir} ${money(a.price)}`, `Now ${pxFmt(a.now)}`, 9000));
+      window.LN_TOOLS.alerts.check(state.markets).forEach((a) => { toast("alert", `${a.symbol} is ${a.dir} ${money(a.price)}`, `Now ${pxFmt(a.now)}`, 9000); window.NF_FEAT.notes.push("alert", `${a.symbol} is ${a.dir} ${money(a.price)}`, `Now ${pxFmt(a.now)}`); });
       if (viewTick) viewTick(prev);
       wallet();
     });
@@ -320,9 +321,14 @@
       <div class="row" style="gap:6px;flex-wrap:nowrap"><span class="btn btn--xs btn--jade" data-go="long">Long</span><span class="btn btn--xs btn--cinnabar" data-go="short">Short</span></div>
     </a>`;
   }
+  const sortState = { key: null, dir: -1 };
   function board(host, filter = () => true) {
-    const rows = state.markets.filter(filter);
-    host.innerHTML = `<div class="board__row board__row--head"><span></span><span class="label">Market</span><span class="label">Price</span><span class="label">24h</span><span class="label">24h chart</span><span class="label" style="text-align:right">Trade</span></div>` + (rows.length ? rows.map(boardRow).join("") : `<div class="empty"><p>No markets match. Star a market to add it to your watchlist.</p></div>`);
+    let rows = state.markets.filter(filter);
+    const key = { name: (m) => m.symbol, price: (m) => toPx(m.price), change: (m) => change24(m.id) || 0 }[sortState.key];
+    if (key) rows = [...rows].sort((a, b) => { const x = key(a), y = key(b); return (x > y ? 1 : x < y ? -1 : 0) * sortState.dir; });
+    const th = (k, label) => `<button class="label sorter ${sortState.key === k ? "is-on" : ""}" data-sort="${k}" aria-label="Sort by ${label}">${label}${sortState.key === k ? (sortState.dir > 0 ? " ↑" : " ↓") : ""}</button>`;
+    host.innerHTML = `<div class="board__row board__row--head"><span></span>${th("name", "Market")}${th("price", "Price")}${th("change", "24h")}<span class="label">24h chart</span><span class="label" style="text-align:right">Trade</span></div>` + (rows.length ? rows.map(boardRow).join("") : `<div class="empty"><p>No markets match. Star a market to add it to your watchlist.</p></div>`);
+    $$("[data-sort]", host).forEach((b) => b.addEventListener("click", () => { const k = b.dataset.sort; sortState.dir = sortState.key === k ? -sortState.dir : k === "name" ? 1 : -1; sortState.key = k; board(host, filter); }));
     $$("[data-star]", host).forEach((b) => b.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); const on = window.LN_TOOLS.watch.toggle(b.dataset.star); b.classList.toggle("on", on); b.setAttribute("aria-pressed", String(on)); b.setAttribute("aria-label", `${on ? "Remove from" : "Add to"} watchlist`); toast("ok", on ? "Added to watchlist" : "Removed from watchlist", b.dataset.star, 2000); }));
     $$("[data-go]", host).forEach((b) => b.addEventListener("click", (e) => { e.preventDefault(); const row = b.closest("[data-row]"); location.hash = `#/trade/${state.markets[row.dataset.row].symbol}?side=${b.dataset.go}`; }));
     drawSparks(host);
@@ -382,7 +388,7 @@
     <section class="section" style="padding-top:0"><div class="wrap">
       <div class="head"><div><span class="kicker">The vault</span><h2 class="h2">Every trade has a counterparty.</h2></div><a class="btn btn--ghost btn--sm" href="#/vault">Provide liquidity →</a></div>
       <div class="stats" id="vaultStats">${["Vault assets", "Open interest", "Net exposure", "Exposure cap"].map((k) => `<div class="stat"><span class="label">${k}</span><div class="stat__v">—</div><div class="stat__s"></div></div>`).join("")}</div>
-      <p class="note" style="margin-top:24px">Lantern is not affiliated with, endorsed by or a broker for any company listed here. You never own the shares. Positions only track their price.</p>
+      <p class="note" style="margin-top:24px">Nightfall is not affiliated with, endorsed by or a broker for any company listed here. You never own the shares. Positions only track their price.</p>
     </div></section>`;
 
     await loadMarkets();
@@ -453,7 +459,22 @@
     await loadMarkets();
     if (!$("#toolsHost")) return;
     const t = window.LN_TOOLS.tools($("#toolsHost"), { markets: () => state.markets, history: (i) => loadHist(i), toast });
-    onTick(() => t.refresh());
+    $("#toolsHost").insertAdjacentHTML("beforeend", `
+      <section class="panel tool" id="corrTool"><span class="label">Analysis</span><h2>Who moves together?</h2><p>Correlation of 5-minute returns over the last 24 hours. Blue means the two markets tend to move the same way; amber means they move in opposite directions.</p><div id="corrHost"></div></section>
+      <section class="panel tool" id="gameTool"><span class="label">Game</span><h2>Up or down?</h2><p>Call the next 15 seconds of any market and build a streak.</p><div id="gameHost"></div></section>`);
+    const drawCorr = async () => {
+      const hs = await Promise.all(state.markets.map((m) => loadHist(m.id)));
+      if (!$("#corrHost")) return;
+      window.NF_FEAT.correlation($("#corrHost"), state.markets, hs, (i, j) => {
+        $$("#cmpPick .chipbtn").forEach((b) => b.classList.toggle("on", [i, j].includes(Number(b.dataset.c))));
+        t.refresh(); // redraw the comparison with this pair
+        $("#cmp")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+    };
+    drawCorr();
+    window.NF_FEAT.game($("#gameHost"), { markets: () => state.markets, onResult: (won, sym, streak) => { if (won && streak >= 3) { toast("ok", `${streak} in a row`, `Nice read on ${sym}.`); window.NF_FEAT.notes.push("ok", `Up-or-down streak: ${streak}`, sym); } } });
+    let n = 0;
+    onTick(() => { t.refresh(); if (++n % 10 === 0) drawCorr(); });
   };
 
   function positionsTable(list, { withActions = true } = {}) {
@@ -494,6 +515,7 @@
       <nav class="strip" aria-label="Markets">${state.markets.map((x) => `<a href="#/trade/${esc(x.symbol)}" class="${x.id === m.id ? "is-on" : ""}"><b>${esc(x.symbol)}</b><span data-strip="${x.id}">${pxFmt(toPx(x.price))}</span></a>`).join("")}</nav>
       <div class="tradehead">${badge(m)}<div><h1>${esc(m.symbol)}</h1><div class="muted small">${esc(m.name)} · ${esc(m.sector)}</div></div>
         <div class="tradehead__px"><div class="big" id="tPx">${pxFmt(toPx(m.price))}</div><div class="mono small"><span id="tCh"></span> · <span class="faint" id="tUpd"></span></div></div></div>
+      <div class="panel" id="range" style="margin-bottom:14px"></div>
       <div class="tgrid">
         <div>
           <div class="panel">
@@ -626,11 +648,12 @@
     document.addEventListener("keydown", keys);
     viewCleanup = () => { document.removeEventListener("ln:wallet", onWallet); document.removeEventListener("keydown", keys); $(".shortcuts")?.remove(); };
 
-    head(); summary(); refreshBal(); refreshPositions(); lsbar();
+    const rangeUpd = () => $("#range") && window.NF_FEAT.rangePanel($("#range"), hist, pxFmt);
+    head(); summary(); refreshBal(); refreshPositions(); lsbar(); rangeUpd();
     let lastUpd = state.markets[m.id].updatedAt;
     onTick(async () => {
       if (!$("#chart")) return;
-      head(); lsbar();
+      head(); lsbar(); rangeUpd();
       const upd = state.markets[m.id].updatedAt;
       if (state.be.preview || upd !== lastUpd) { lastUpd = upd; hist = await loadHist(m.id, true); if (!$("#chart")) return; ch.update(hist); }
       summary();
@@ -680,14 +703,14 @@
       <div class="panel" style="margin-top:14px"><div class="fieldhead"><span class="label">Exposure used</span><span class="mono small" id="expV"></span></div><div class="risk-bar" style="margin-top:10px"><i id="expBar" style="width:0"></i></div><p class="faint small" style="margin:10px 0 0">New positions are refused when net exposure would pass the cap, and withdrawals are refused when they would leave open positions uncovered.</p></div>
       <div class="two" style="margin-top:14px">
         <form class="panel" id="dep" novalidate><span class="label">Deposit</span><div class="field"><div class="fieldhead"><label class="faint small" for="depAmt">USDG</label><span class="faint small" id="depBal"></span></div><div class="amount"><input id="depAmt" inputmode="decimal" placeholder="0.00"><span>USDG</span></div></div><button class="btn btn--amber btn--block" style="margin-top:16px" type="submit">Deposit</button></form>
-        <form class="panel" id="wd" novalidate><span class="label">Withdraw</span><div class="field"><div class="fieldhead"><label class="faint small" for="wdAmt">Shares (LNV)</label><span class="faint small" id="wdBal"></span></div><div class="amount"><input id="wdAmt" inputmode="decimal" placeholder="0.00"><span>LNV</span></div></div><button class="btn btn--ghost btn--block" style="margin-top:16px" type="submit">Withdraw</button></form>
+        <form class="panel" id="wd" novalidate><span class="label">Withdraw</span><div class="field"><div class="fieldhead"><label class="faint small" for="wdAmt">Shares (NFV)</label><span class="faint small" id="wdBal"></span></div><div class="amount"><input id="wdAmt" inputmode="decimal" placeholder="0.00"><span>NFV</span></div></div><button class="btn btn--ghost btn--block" style="margin-top:16px" type="submit">Withdraw</button></form>
       </div>
       <p class="note" style="margin-top:24px">Vault depositors lose money when traders win. The share price only counts closed results, so it can jump when large positions close.</p>
     </div></section>`;
     await loadMarkets();
     const SH = 10n ** 18n; // demo shares use collateral units; chain shares use 18 decimals
     let v = null;
-    const shareDec = () => dec(); // LNV shares use the collateral's decimals
+    const shareDec = () => dec(); // NFV shares use the collateral's decimals
     async function refresh() {
       if (!$("#vStats")) return;
       try { v = await state.be.vault(); } catch (e) { console.warn(e); return; }
@@ -696,7 +719,7 @@
       const sp = supply ? assets / supply : 1, mine = v.mine === null ? null : Number(v.mine) / 10 ** shareDec();
       const cap = Number(state.params?.maxNetExposureBps ?? 5000n) / 10000;
       const used = assets ? toUsd(v.net) / (assets * cap) : 0;
-      const vals = [[money(assets), "USDG"], [`$${sp.toFixed(4)}`, "per LNV share"], [money(toUsd(v.net)), `cap ${money(assets * cap)}`], [mine === null ? "—" : money(mine * sp), mine === null ? "connect to see" : `${mine.toLocaleString("en-US", { maximumFractionDigits: 2 })} LNV`]];
+      const vals = [[money(assets), "USDG"], [`$${sp.toFixed(4)}`, "per NFV share"], [money(toUsd(v.net)), `cap ${money(assets * cap)}`], [mine === null ? "—" : money(mine * sp), mine === null ? "connect to see" : `${mine.toLocaleString("en-US", { maximumFractionDigits: 2 })} NFV`]];
       $$("#vStats .stat").forEach((s, i) => { $(".stat__v", s).textContent = vals[i][0]; $(".stat__s", s).textContent = vals[i][1]; });
       $("#expBar").style.width = `${Math.min(100, used * 100).toFixed(1)}%`;
       $("#expV").textContent = `${(used * 100).toFixed(1)}%`;
@@ -709,7 +732,7 @@
     $("#wdAmt").addEventListener("input", (e) => delete e.target.dataset.exact);
     if (!tradingOpen()) {
       $$("#dep button[type=submit], #wd button[type=submit]").forEach((b) => { b.disabled = true; b.textContent = "Opens at launch"; });
-      $("#dep").insertAdjacentHTML("afterend", `<p class="note" style="grid-column:1/-1;margin:0">Deposits open when Lantern's contracts go live. The numbers above are a preview.</p>`);
+      $("#dep").insertAdjacentHTML("afterend", `<p class="note" style="grid-column:1/-1;margin:0">Deposits open when Nightfall's contracts go live. The numbers above are a preview.</p>`);
     }
     $("#dep").addEventListener("submit", async (e) => {
       e.preventDefault();
@@ -738,8 +761,8 @@
 
   const prose = (kicker, title, html) => { main.innerHTML = `<section class="page"><div class="wrap"><span class="kicker">${kicker}</span><h1 class="h2" style="margin-bottom:28px">${title}</h1><article class="prose">${html}</article></div></section>`; };
 
-  views.learn = () => prose("Learn", "How Lantern works", `
-    <p>Lantern lets you take a leveraged long or short position on the price of eight Chinese companies listed in the United States. You post USDG as margin. You never hold the shares; your position only tracks the price.</p>
+  views.learn = () => prose("Learn", "How Nightfall works", `
+    <p>Nightfall lets you take a leveraged long or short position on the price of eight Chinese companies listed in the United States. You post USDG as margin. You never hold the shares; your position only tracks the price.</p>
     <h2>Opening a position</h2>
     <p>Choose a market, a side and a leverage between 1× and 10×. The opening fee is 0.1% of the position size, taken from your margin. What is left is your margin, and the position size is that margin times your leverage.</p>
     <div class="formula">fee  = margin × leverage × 0.1%<br>size = (margin − fee) × leverage</div>
@@ -751,13 +774,13 @@
     <h2>Prices</h2>
     <p>Prices come from an on-chain oracle that authorised keepers update. The exchange refuses to trade on a price older than one hour, and a single update can't move a price more than 20%. Outside US market hours the oracle holds the last price, so positions can gap when trading resumes.</p>
     <h2>The vault</h2>
-    <p>Liquidity providers deposit USDG into the vault and receive LNV shares. The vault is the counterparty to every trade. Total net exposure across markets is capped at 50% of vault assets.</p>
+    <p>Liquidity providers deposit USDG into the vault and receive NFV shares. The vault is the counterparty to every trade. Total net exposure across markets is capped at 50% of vault assets.</p>
     <h2>Contracts</h2>
-    <p><code>PriceOracle.sol</code> stores keeper prices, and <code>LanternExchange.sol</code> holds margin, positions and the vault. Both are MIT licensed, tested, and not yet audited.</p>`);
+    <p><code>PriceOracle.sol</code> stores keeper prices, and <code>NightfallExchange.sol</code> holds margin, positions and the vault. Both are MIT licensed, tested, and not yet audited.</p>`);
 
   views.risk = () => prose("Risk disclosure", "Read this before trading", `
     <p><b>Leverage multiplies losses.</b> At 10× a 10% move against you wipes out your margin. Liquidation can happen quickly, especially when prices gap after a market closure.</p>
-    <h3>No ownership, no affiliation</h3><p>Positions are synthetic. You have no rights to the shares, dividends or votes. Lantern is not affiliated with, endorsed by, or a broker for any listed company.</p>
+    <h3>No ownership, no affiliation</h3><p>Positions are synthetic. You have no rights to the shares, dividends or votes. Nightfall is not affiliated with, endorsed by, or a broker for any listed company.</p>
     <h3>Oracle risk</h3><p>Prices come from keepers. A delayed, wrong or manipulated price can cause unfair liquidations or payouts.</p>
     <h3>Counterparty and vault risk</h3><p>Profits are paid from the vault. In extreme cases the vault can run out, and payouts are capped at what it holds.</p>
     <h3>Smart-contract risk</h3><p>The contracts are tested but not formally audited. Bugs could lead to loss of funds.</p>
@@ -784,7 +807,7 @@
     $$("[data-nav]").forEach((a) => a.classList.toggle("is-on", a.dataset.nav === view || (view === "trade" && a.dataset.nav === "markets")));
     $("#nav").classList.remove("is-open"); $("#burger").setAttribute("aria-expanded", "false");
     window.scrollTo(0, 0);
-    document.title = `Lantern — ${{ home: "the night desk for China's giants", markets: "Markets", trade: `${String(arg).toUpperCase()}`, portfolio: "Portfolio", vault: "Vault", tools: "Tools", zcash: "Zcash corner", learn: "How it works", risk: "Risk disclosure", notfound: "Not found" }[view]}`;
+    document.title = `Nightfall — ${{ home: "the night desk for China's giants", markets: "Markets", trade: `${String(arg).toUpperCase()}`, portfolio: "Portfolio", vault: "Vault", tools: "Tools", zcash: "Zcash corner", learn: "How it works", risk: "Risk disclosure", notfound: "Not found" }[view]}`;
     Promise.resolve(views[view](params, arg)).catch((e) => { console.error(e); toast("err", "Something broke", B.friendly(e)); });
   }
 
@@ -872,6 +895,8 @@
     const icon = avg < -0.3 ? '<path d="M7 17a4 4 0 1 1 1-7.9A5 5 0 0 1 18 10a3.5 3.5 0 0 1-1 7z"/><path d="M9 20l-1 2M13 20l-1 2M17 20l-1 2"/>' : avg < 0.3 ? '<path d="M7 18a4 4 0 1 1 1-7.9A5 5 0 0 1 18 11a3.5 3.5 0 0 1-1 7z"/>' : '<circle cx="8" cy="8" r="3"/><path d="M8 1v2M1 8h2M3 3l1.4 1.4M13 3l-1.4 1.4"/><path d="M9 19a4 4 0 1 1 1-7.9A5 5 0 0 1 20 12a3.5 3.5 0 0 1-1 7z"/>';
     $$("[data-weather]").forEach((el) => { el.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">${icon}</svg>${label} · markets ${pct(avg)} avg`; el.title = "The sky follows the average 24h change across all eight markets."; });
   }
+  window.NF_FEAT.initBell();
+  $("#themeMobile") && ($("#themeMobile").onclick = () => $("#theme").click());
   window.LN_TOOLS.initTheme();
   window.LN_TOOLS.initPalette(() => state.markets);
   (state.markets.length ? Promise.resolve() : loadMarkets()).then(async () => {
