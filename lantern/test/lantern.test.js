@@ -131,6 +131,11 @@ describe("Lantern", function () {
     await expect(ex.connect(alice).open(0, true, U(100), 2)).to.be.revertedWithCustomError(oracle, "Stale");
   });
 
+  it("vault shares use the collateral's decimals", async () => {
+    expect(await ex.decimals()).to.equal(6);
+    expect(await ex.balanceOf(lp.address)).to.equal(U(100_000)); // 1 LNV per USDG at the first deposit
+  });
+
   it("vault shares track profit and block withdrawals that would uncover positions", async () => {
     await ex.connect(alice).open(0, false, U(1000), 10);
     const [ids] = await ex.positionsOf(alice.address);

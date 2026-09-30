@@ -431,3 +431,25 @@ h1, h2, h3 { text-wrap: balance; }
 .nav:not(.is-scrolled):not(.is-open) { background: linear-gradient(to bottom, color-mix(in srgb, var(--bg) 72%, transparent), color-mix(in srgb, var(--bg) 20%, transparent)); }
 .hero { isolation: isolate; }
 .hero::before { content: ""; position: absolute; z-index: -1; left: 0; top: 0; bottom: 0; width: min(900px, 75vw); background: radial-gradient(80% 70% at 20% 50%, color-mix(in srgb, var(--bg) 55%, transparent), transparent 75%); pointer-events: none; }
+
+/* wallet picker & menu */
+.wallet-picker .cmdk__box { padding-bottom: 6px; }
+.wp__head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 20px 20px 8px; }
+.wp__list { list-style: none; margin: 0; padding: 8px 12px; display: grid; gap: 6px; }
+.wp__item { width: 100%; display: flex; align-items: center; gap: 14px; padding: 12px 14px; border-radius: 14px; background: var(--bg-3); text-align: left; transition: background .2s, transform .2s var(--ease); }
+.wp__item:hover { background: var(--cobalt-soft); transform: translateX(2px); }
+.wp__item[disabled] { opacity: .7; }
+.wp__item img, .wp__ph { width: 32px; height: 32px; border-radius: 9px; flex: none; }
+.wp__ph { display: grid; place-items: center; background: var(--cobalt); color: var(--on-accent); font-weight: 700; }
+.wp__item b { display: block; font-size: 15px; }
+.wp__item small { color: var(--ink-3); font-size: 12px; }
+.wp__none { padding: 14px; color: var(--ink-2); font-size: 14px; }
+.wp__more { padding: 10px 20px 4px; }
+.wp__note { padding: 8px 20px 14px; margin: 0; }
+.wallet-menu { position: fixed; z-index: 230; width: 270px; padding: 10px; border-radius: 16px; background: var(--solid); box-shadow: 0 24px 60px -20px rgba(0,0,0,.7), 0 0 0 1px var(--line); display: grid; gap: 2px; animation: pop .2s var(--ease); }
+.wm__who { display: flex; gap: 10px; align-items: center; padding: 8px 8px 12px; border-bottom: 1px solid var(--line); margin-bottom: 4px; }
+.wm__who img { border-radius: 8px; }
+.wm__row { display: flex; justify-content: space-between; padding: 6px 8px; }
+.wallet-menu button, .wallet-menu a { text-align: left; padding: 10px 8px; border-radius: 10px; font-size: 14px; font-weight: 600; }
+.wallet-menu button:hover, .wallet-menu a:hover { background: var(--cobalt-soft); }
+#wallet .wicon { border-radius: 5px; }

@@ -118,20 +118,14 @@
     let timer = null;
     const hex = "0x" + chainId.toString(16);
 
+    // uses whichever real wallet the user picked (EIP-6963), switching it to this chain if needed
     async function ensure() {
-      if (!window.ethereum) throw new Error("No EVM wallet found. Install MetaMask, Rabby or another EVM wallet.");
-      const bp = new ethers.BrowserProvider(window.ethereum, "any");
-      await bp.send("eth_requestAccounts", []);
-      if (Number((await bp.getNetwork()).chainId) !== chainId) {
-        try { await bp.send("wallet_switchEthereumChain", [{ chainId: hex }]); }
-        catch (e) {
-          const code = e?.error?.code ?? e?.info?.error?.code ?? e?.code;
-          if (code === 4902 || /unrecognized|not added|unknown chain/i.test(e?.message || "")) {
-            await bp.send("wallet_addEthereumChain", [{ chainId: hex, chainName: dep.name, rpcUrls: [dep.rpc], nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 }, blockExplorerUrls: dep.explorer ? [dep.explorer] : [] }]);
-          } else throw e;
-        }
+      const W = window.LN_WALLET;
+      if (!W.state) throw new Error("Connect a wallet first.");
+      if (W.state.chainId !== chainId) {
+        await W.switchChain(chainId, { chainName: dep.name, rpcUrls: [dep.rpc], nativeCurrency: dep.native || { name: "Ether", symbol: "ETH", decimals: 18 }, blockExplorerUrls: dep.explorer ? [dep.explorer] : [] });
       }
-      signer = await new ethers.BrowserProvider(window.ethereum, "any").getSigner();
+      signer = await new ethers.BrowserProvider(W.provider, "any").getSigner();
       account = await signer.getAddress();
       return account;
     }
@@ -144,7 +138,7 @@
       await (await t.approve(dep.exchange, amount)).wait();
     }
     async function send(fn, st) {
-      if (!signer) await ensure();
+      await ensure();
       st("Confirm in your wallet…");
       const tx = await fn();
       st("Waiting for confirmation…");
@@ -153,9 +147,10 @@
 
     return {
       demo: false, ready: true, name: dep.name, symbol: "USDG", get decimals() { return decimals ?? 6; }, canFaucet: chainId === 31337,
-      get account() { return account; },
+      get account() { return window.LN_WALLET.state?.account || null; },
       async connect() { await dec(); return ensure(); },
       disconnect() { signer = null; account = null; },
+      reset() { signer = null; account = null; },
       async params() {
         const [feeBps, maintenanceBps, maxNetExposureBps, minMargin, rewardBps] = await Promise.all([exR.feeBps(), exR.maintenanceBps(), exR.maxNetExposureBps(), exR.minMargin(), exR.liquidationRewardBps()]);
         await dec();
@@ -179,8 +174,9 @@
         }
         return evs.map((e) => ({ t: Number(e.args.timestamp), p: Number(e.args.price) / 1e8 }));
       },
-      async balance() { return account ? tokR.balanceOf(account) : null; },
+      async balance() { const a = window.LN_WALLET.state?.account; return a ? tokR.balanceOf(a) : null; },
       async positions() {
+        const account = window.LN_WALLET.state?.account;
         if (!account) return [];
         const [ids, list] = await exR.positionsOf(account);
         const px = new Map();
@@ -195,6 +191,7 @@
         }));
       },
       async closed() {
+        const account = window.LN_WALLET.state?.account;
         if (!account) return [];
         const latest = await read.getBlockNumber();
         const from = Math.max(dep.startBlock || 0, latest - 40000);
@@ -206,26 +203,46 @@
         return rows;
       },
       async vault() {
+        const account = window.LN_WALLET.state?.account;
         const [assets, supply, net, totalMargin, mine] = await Promise.all([exR.vaultAssets(), exR.totalSupply(), exR.netExposure(), exR.totalMargin(), account ? exR.balanceOf(account) : null]);
         return { assets, supply, net, totalMargin, mine };
       },
-      async open(m, isLong, margin, lev, st) { if (!signer) await ensure(); await approve(margin, st); return send(() => exW().open(m, isLong, margin, lev), st); },
+      async open(m, isLong, margin, lev, st) { await ensure(); await approve(margin, st); return send(() => exW().open(m, isLong, margin, lev), st); },
       async close(id, st) { return send(() => exW().close(id), st); },
-      async addMargin(id, a, st) { if (!signer) await ensure(); await approve(a, st); return send(() => exW().addMargin(id, a), st); },
-      async deposit(a, st) { if (!signer) await ensure(); await approve(a, st); return send(() => exW().deposit(a), st); },
+      async addMargin(id, a, st) { await ensure(); await approve(a, st); return send(() => exW().addMargin(id, a), st); },
+      async deposit(a, st) { await ensure(); await approve(a, st); return send(() => exW().deposit(a), st); },
       async withdraw(s, st) { return send(() => exW().withdraw(s), st); },
-      async faucet() { if (!signer) await ensure(); const t = new ethers.Contract(dep.collateral, ABI.erc20, signer); await (await t.mint(account, ethers.parseUnits("5000", await dec()))).wait(); },
+      async faucet() { await ensure(); const t = new ethers.Contract(dep.collateral, ABI.erc20, signer); await (await t.mint(account, ethers.parseUnits("5000", await dec()))).wait(); },
       subscribe(f) { listeners.add(f); if (!timer) timer = setInterval(() => listeners.forEach((g) => g({})), 8000); return () => { listeners.delete(f); if (!listeners.size) { clearInterval(timer); timer = null; } }; },
       explorerTx: (h) => (dep.explorer ? `${dep.explorer}/tx/${h}` : null),
+    };
+  }
+
+  // Preview: market data from the simulator; the wallet is real; nothing can be traded yet.
+  function preview() {
+    const d = demo();
+    const closedMsg = "Trading opens when Lantern's contracts go live. Your wallet is connected, but no funds can move yet.";
+    const no = async () => { throw new Error(closedMsg); };
+    return {
+      ...d, preview: true, demo: false, tradingOpen: false, canFaucet: false, name: "Preview",
+      get account() { return window.LN_WALLET.state?.account || null; },
+      async connect() { return window.LN_WALLET.state?.account || null; },
+      disconnect() {}, reset() {},
+      async balance() { return null; },
+      async positions() { return []; },
+      async closed() { return []; },
+      async vault() { const v = await d.vault(); return { ...v, mine: null }; },
+      open: no, close: no, addMargin: no, deposit: no, withdraw: no, faucet: no,
+      closedMsg,
     };
   }
 
   function networks() {
     const deps = window.LN_DEPLOYMENTS || {};
     const list = Object.entries(deps).map(([id, d]) => ({ key: `chain-${id}`, chainId: Number(id), name: d.name, dep: d }));
-    list.push({ key: "demo", name: CFG.demo.name, demo: true });
+    list.push({ key: "preview", name: "Preview", preview: true });
     return list;
   }
 
-  window.LN_BACKEND = { make: (n) => (n.demo ? demo() : chain(n.chainId, n.dep)), networks, friendly };
+  window.LN_BACKEND = { make: (n) => (n.preview ? preview() : chain(n.chainId, n.dep)), networks, friendly };
 })();

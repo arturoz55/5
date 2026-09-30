@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -40,6 +41,7 @@ contract LanternExchange is ERC20, Ownable, ReentrancyGuard {
     }
 
     IERC20 public immutable collateral;
+    uint8 private immutable _shareDecimals; // shares are minted 1:1 with collateral units at first deposit
     PriceOracle public immutable oracle;
 
     uint256 public feeBps = 10; // 0.10% of notional on open and on close
@@ -83,6 +85,7 @@ contract LanternExchange is ERC20, Ownable, ReentrancyGuard {
         Ownable(owner_)
     {
         collateral = collateral_;
+        _shareDecimals = IERC20Metadata(address(collateral_)).decimals();
         oracle = oracle_;
         minMargin = minMargin_;
     }
@@ -312,7 +315,8 @@ contract LanternExchange is ERC20, Ownable, ReentrancyGuard {
         emit ParamsSet(feeBps_, maintenanceBps_, rewardBps_, maxNetExposureBps_, minMargin_);
     }
 
+    /// @notice Vault shares use the collateral's decimals, so 1 LNV starts out worth 1 USDG.
     function decimals() public view override returns (uint8) {
-        return 18;
+        return _shareDecimals;
     }
 }

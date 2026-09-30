@@ -65,40 +65,33 @@
   function setNet(n, silent) {
     if (state.unsub) { state.unsub(); state.unsub = null; }
     state.net = n; state.be = B.make(n); state.markets = []; state.hist = new Map(); state.params = null;
-    ls.set("ln-net", n.key);
-    $$(".net").forEach((s) => (s.value = n.key));
-    const b = $("#banner");
-    if (n.demo) {
-      b.innerHTML = `<div class="banner">Demo network: prices are simulated and no real money moves.<button id="resetDemo">Reset demo</button></div>`;
-      $("#resetDemo").onclick = () => { state.be.reset(); toast("ok", "Demo reset", "Fresh prices and a refilled wallet."); setNet(n); };
-    } else b.innerHTML = "";
+    $("#banner").innerHTML = "";
     wallet();
     if (!silent) route();
   }
-  async function wallet() {
-    const a = state.be?.account;
-    $("#walletDot").classList.toggle("on", !!a);
-    if (!a) { $("#walletLabel").textContent = "Connect"; return; }
-    let bal = "";
-    try { const v = await state.be.balance(); if (v !== null) bal = ` · ${compact(toUsd(v))}`; } catch { /* ignore */ }
-    $("#walletLabel").textContent = `${a.slice(0, 6)}…${a.slice(-4)}${bal}`;
+  const tradingOpen = () => !state.be?.preview;
+  function wallet() {
+    const W = window.LN_WALLET.state;
+    $("#walletDot").classList.toggle("on", !!W);
+    const btn = $("#wallet");
+    btn.setAttribute("aria-haspopup", W ? "menu" : "dialog");
+    if (!W) { $("#walletLabel").textContent = "Connect wallet"; btn.querySelector(".wicon")?.remove(); return; }
+    let ic = btn.querySelector(".wicon");
+    if (W.icon) { if (!ic) { ic = document.createElement("img"); ic.className = "wicon"; ic.alt = ""; ic.width = 18; ic.height = 18; btn.insertBefore(ic, $("#walletLabel")); } ic.src = W.icon; } else ic?.remove();
+    $("#walletLabel").textContent = `${W.account.slice(0, 6)}…${W.account.slice(-4)}`;
+    btn.title = `${W.name} · ${W.chainName}`;
   }
   async function connect() {
-    try {
-      await state.be.connect();
-      toast("ok", "Wallet connected", state.net.demo ? "Your demo wallet holds 10,000 USDG." : "");
-      wallet(); document.dispatchEvent(new Event("ln:wallet"));
-      return true;
-    } catch (e) { toast("err", "Couldn't connect", B.friendly(e)); return false; }
+    const s = await window.LN_WALLET.picker(toast);
+    if (!s) return false;
+    toast("ok", `${s.name} connected`, `${s.account.slice(0, 6)}…${s.account.slice(-4)} on ${s.chainName}`);
+    return true;
   }
   $("#wallet").onclick = () => {
-    if (state.be.account) { state.be.disconnect(); wallet(); toast("ok", "Disconnected", ""); document.dispatchEvent(new Event("ln:wallet")); }
+    if (window.LN_WALLET.state) window.LN_WALLET.menu($("#wallet"), { toast, explorer: state.net.dep?.explorer ? (a) => `${state.net.dep.explorer}/address/${a}` : null, onDisconnect: () => toast("ok", "Wallet disconnected", "") });
     else connect();
   };
-  if (window.ethereum?.on) {
-    window.ethereum.on("accountsChanged", () => { if (!state.net.demo) { state.be.disconnect(); wallet(); document.dispatchEvent(new Event("ln:wallet")); } });
-    window.ethereum.on("chainChanged", () => { if (!state.net.demo) { state.be.disconnect(); wallet(); } });
-  }
+  window.LN_WALLET.onChange(() => { state.be?.reset?.(); wallet(); document.dispatchEvent(new Event("ln:wallet")); });
 
   async function loadMarkets() {
     try {
@@ -122,7 +115,7 @@
       if (ev.liquidated?.length) ev.liquidated.forEach((p) => toast("err", "Position liquidated", `${state.markets[p.marketId]?.symbol || ""} ${p.isLong ? "long" : "short"} fell below maintenance margin.`, 8000));
       const prev = state.markets.map((m) => m.price);
       await loadMarkets();
-      if (state.be.demo) state.hist.clear(); // simulated feed moves every tick
+      if (state.be.preview) state.hist.clear(); // simulated feed moves every tick
       updateWeather();
       renderTicker();
       window.LN_TOOLS.alerts.check(state.markets).forEach((a) => toast("alert", `${a.symbol} is ${a.dir} ${money(a.price)}`, `Now ${pxFmt(a.now)}`, 9000));
@@ -406,7 +399,7 @@
     updateWeather();
     T.heatmap($("#heat"), state.markets, state.markets.map((m) => change24(m.id)));
     T.timeline($("#tlHome"));
-    $("#feedNote").textContent = state.net.demo ? "Simulated feed · updates every 3 s" : `Oracle feed · ${state.net.name}`;
+    $("#feedNote").textContent = state.be.preview ? "Preview prices · simulated until launch" : `Oracle feed · ${state.net.name}`;
     const vs = async () => {
       try {
         const v = await state.be.vault();
@@ -446,7 +439,7 @@
     await Promise.all(state.markets.map((m) => loadHist(m.id)));
     updateWeather();
     if (!$("#feedNote")) return;
-    $("#feedNote").textContent = state.net.demo ? "Simulated feed · updates every 3 s" : `Oracle feed · ${state.net.name}`;
+    $("#feedNote").textContent = state.be.preview ? "Preview prices · simulated until launch" : `Oracle feed · ${state.net.name}`;
     onTick((prev) => $("#board") && updateBoard($("#board"), prev));
   };
 
@@ -590,6 +583,7 @@
       go.className = `btn btn--block ${side === "long" ? "btn--jade" : "btn--cinnabar"}`;
       go.disabled = false;
       if (!state.be.account) { go.textContent = "Connect wallet"; go.dataset.act = "connect"; return; }
+      if (!tradingOpen()) { go.textContent = "Trading opens at launch"; go.disabled = true; go.dataset.act = "closed"; go.title = state.be.closedMsg || ""; return; }
       go.dataset.act = "open";
       const min = p?.minMargin ?? 5_000_000n;
       if (!margin) { go.textContent = "Enter margin"; go.disabled = true; }
@@ -638,9 +632,9 @@
       if (!$("#chart")) return;
       head(); lsbar();
       const upd = state.markets[m.id].updatedAt;
-      if (state.be.demo || upd !== lastUpd) { lastUpd = upd; hist = await loadHist(m.id, true); if (!$("#chart")) return; ch.update(hist); }
+      if (state.be.preview || upd !== lastUpd) { lastUpd = upd; hist = await loadHist(m.id, true); if (!$("#chart")) return; ch.update(hist); }
       summary();
-      if (positions.length || state.be.demo) refreshPositions();
+      if (positions.length) refreshPositions();
       refreshBal();
     });
   };
@@ -648,6 +642,7 @@
   views.portfolio = async () => {
     main.innerHTML = `<section class="page"><div class="wrap">
       <div class="head"><div><span class="kicker">Portfolio</span><h1 class="h2">Your book</h1></div></div>
+      ${!tradingOpen() ? `<p class="note" style="margin:0 0 18px">Trading hasn't launched yet, so there are no positions to show. Once it does, your positions appear here for the wallet you connect.</p>` : ""}
       <div class="stats" id="pStats">${["Wallet", "Margin in positions", "Unrealised PnL", "Account value"].map((k) => `<div class="stat"><span class="label">${k}</span><div class="stat__v">—</div></div>`).join("")}</div>
       <div class="panel" style="margin-top:14px"><span class="label">Open positions</span><div id="positions" style="margin-top:12px"></div></div>
       <div class="panel"><span class="label">Recently closed</span><div id="closed" style="margin-top:12px"></div></div>
@@ -692,7 +687,7 @@
     await loadMarkets();
     const SH = 10n ** 18n; // demo shares use collateral units; chain shares use 18 decimals
     let v = null;
-    const shareDec = () => (state.be.demo ? dec() : 18);
+    const shareDec = () => dec(); // LNV shares use the collateral's decimals
     async function refresh() {
       if (!$("#vStats")) return;
       try { v = await state.be.vault(); } catch (e) { console.warn(e); return; }
@@ -712,6 +707,10 @@
       if ($("#wdMax")) $("#wdMax").onclick = () => { $("#wdAmt").value = ethers.formatUnits(v.mine, shareDec()); $("#wdAmt").dataset.exact = v.mine.toString(); };
     }
     $("#wdAmt").addEventListener("input", (e) => delete e.target.dataset.exact);
+    if (!tradingOpen()) {
+      $$("#dep button[type=submit], #wd button[type=submit]").forEach((b) => { b.disabled = true; b.textContent = "Opens at launch"; });
+      $("#dep").insertAdjacentHTML("afterend", `<p class="note" style="grid-column:1/-1;margin:0">Deposits open when Lantern's contracts go live. The numbers above are a preview.</p>`);
+    }
     $("#dep").addEventListener("submit", async (e) => {
       e.preventDefault();
       if (!state.be.account && !(await connect())) return;
@@ -794,18 +793,14 @@
   new ResizeObserver(() => document.documentElement.style.setProperty("--navh", `${nav.offsetHeight}px`)).observe(nav);
   addEventListener("scroll", () => nav.classList.toggle("is-scrolled", scrollY > 8), { passive: true });
   $("#burger").onclick = () => { const o = !nav.classList.contains("is-open"); nav.classList.toggle("is-open", o); $("#burger").setAttribute("aria-expanded", String(o)); };
-  const nets = B.networks();
-  $$(".net").forEach((s) => {
-    s.innerHTML = nets.map((n) => `<option value="${esc(n.key)}">${esc(n.name)}</option>`).join("");
-    s.onchange = () => { setNet(nets.find((n) => n.key === s.value)); startFeed(); };
-  });
   $("#year").textContent = new Date().getFullYear();
   addEventListener("hashchange", route);
-
-  const saved = nets.find((n) => n.key === ls.get("ln-net"));
+  const nets = B.networks();
   const isLocal = ["localhost", "127.0.0.1"].includes(location.hostname);
-  const firstLive = nets.find((n) => !n.demo && (n.chainId !== 31337 || isLocal));
-  setNet(saved && (saved.demo || saved.chainId !== 31337 || isLocal) ? saved : firstLive || nets.find((n) => n.demo), true);
+  // a live deployment wins; the local node only counts when the site itself runs locally
+  let forcePreview = false; try { forcePreview = localStorage.getItem("ln-force-preview") === "1"; } catch { /* ignore */ } // developer/testing switch, no UI
+  setNet((!forcePreview && nets.find((n) => !n.preview && (n.chainId !== 31337 || isLocal))) || nets.find((n) => n.preview), true);
+  window.LN_WALLET.restore();
   startFeed();
   route();
 
