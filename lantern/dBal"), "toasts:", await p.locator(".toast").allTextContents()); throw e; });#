@@ -1,0 +1,1 @@
+    await p.waitForFunction(() => /You hold 0\b/.test(document.querySelector("#wdBal").textContent), null, { timeout: 10000 }).catch(async (e) => { console.log("wdBal:", await p.textContent("

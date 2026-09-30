@@ -26,7 +26,7 @@
     const btn = $("#theme");
     if (!btn) return;
     btn.onclick = () => {
-      const dark = document.documentElement.dataset.theme ? document.documentElement.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+      const dark = document.documentElement.dataset.theme !== "light";
       const next = dark ? "light" : "dark";
       document.documentElement.dataset.theme = next;
       ls.set("ln-theme", next);

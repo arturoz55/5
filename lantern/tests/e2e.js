@@ -42,6 +42,8 @@ const overflow = async (p, label) => ok((await p.evaluate(() => document.documen
     await p.goto(BASE + "#/");
     await p.waitForSelector("[data-row]");
     ok((await p.locator("[data-row]").count()) === 8, "demo: board lists 8 markets");
+    ok((await p.locator("canvas.sky").count()) === 1, "demo: mountain sky backdrop rendered");
+    ok(/avg/.test(await p.textContent("[data-weather]")), "demo: weather chip reflects markets");
     ok((await p.locator("#heat a").count()) === 8, "demo: heatmap has 8 tiles");
     ok(/open|closed/.test(await p.textContent("#tlPills")), "demo: exchange timeline shows status");
     await p.click('[data-star="JD"]');
@@ -60,6 +62,26 @@ const overflow = async (p, label) => ok((await p.evaluate(() => document.documen
     ok(/Connect/.test(await p.textContent("#go")), "demo: order asks to connect");
     await p.click("#go");
     await p.waitForFunction(() => /Enter margin/.test(document.querySelector("#go").textContent));
+    // trade extras
+    await p.click('#tf button[data-r="3600"]');
+    ok(await p.evaluate(() => document.querySelector('#tf button[data-r="3600"]').classList.contains("on")), "trade: 1h timeframe selectable");
+    const cb = await p.locator("#chart canvas").boundingBox();
+    await p.mouse.move(cb.x + cb.width * 0.2, cb.y + cb.height / 2); await p.mouse.down();
+    await p.mouse.move(cb.x + cb.width * 0.7, cb.y + cb.height / 2, { steps: 5 }); await p.mouse.up();
+    ok(true, "trade: drag-to-measure runs without errors");
+    ok(/Long|Short|No open interest/.test(await p.textContent("#lsbar")), "trade: long/short open-interest bar");
+    await p.fill("#margin", "400");
+    await p.locator("#wi").fill("-15");
+    await p.dispatchEvent("#wi", "input");
+    ok(/Liquidated|\$/.test(await p.textContent("#wiOut")), "trade: what-if simulator responds");
+    await p.click("body", { position: { x: 5, y: 400 } });
+    await p.keyboard.press("l");
+    ok((await p.getAttribute('#side button[data-s="long"]', "class")) === "on-long", "keys: L selects long");
+    await p.keyboard.press("s");
+    ok((await p.getAttribute('#side button[data-s="short"]', "class")) === "on-short", "keys: S selects short");
+    await p.keyboard.press("?");
+    ok(await p.isVisible(".shortcuts"), "keys: ? opens shortcut list");
+    await p.keyboard.press("Escape");
     await p.fill("#margin", "3");
     ok(/Minimum/.test(await p.textContent("#go")), "demo: minimum margin enforced");
     await p.fill("#margin", "500");
@@ -89,13 +111,12 @@ const overflow = async (p, label) => ok((await p.evaluate(() => document.documen
     await p.goto(BASE + "#/vault");
     await p.waitForSelector("#depAmt");
     await p.fill("#depAmt", "1000");
-    await p.click("#dep button");
+    await p.click("#dep button[type=submit]");
     await toast(p, /Done/);
-    await p.waitForSelector("#wdMax");
+    await p.waitForFunction(() => /You hold [1-9]/.test(document.querySelector("#wdBal")?.textContent || ""), null, { timeout: 10000 });
     await p.click("#wdMax");
-    await p.click("#wd button");
-    await p.waitForFunction(() => [...document.querySelectorAll(".toast b")].filter((b) => /Done/.test(b.textContent)).length >= 1);
-    await p.waitForFunction(() => /You hold 0\b/.test(document.querySelector("#wdBal").textContent), null, { timeout: 10000 });
+    await p.click("#wd button[type=submit]");
+    await p.waitForFunction(() => /You hold 0\b/.test(document.querySelector("#wdBal").textContent), null, { timeout: 10000 }).catch(async (e) => { console.log("wdBal:", await p.textContent("#wdBal"), "toasts:", await p.locator(".toast").allTextContents()); throw e; });
     ok(true, "demo: vault deposit and full withdrawal");
     await p.screenshot({ path: `${OUT}/vault.png` });
     await p.goto(BASE + "#/tools"); await p.waitForSelector("#pOut dd"); await p.waitForTimeout(600);
@@ -205,11 +226,11 @@ const overflow = async (p, label) => ok((await p.evaluate(() => document.documen
     await p.goto(BASE + "#/vault");
     await p.waitForSelector("#depAmt");
     await p.fill("#depAmt", "2000");
-    await p.click("#dep button");
+    await p.click("#dep button[type=submit]");
     await toast(p, /Done/, 30000);
     await p.waitForSelector("#wdMax", { timeout: 15000 });
     await p.click("#wdMax");
-    await p.click("#wd button");
+    await p.click("#wd button[type=submit]");
     await p.waitForFunction(() => /You hold 0\b/.test(document.querySelector("#wdBal")?.textContent || ""), null, { timeout: 30000 });
     ok(true, "chain: vault deposit and withdrawal");
     // exposure cap is surfaced as a readable error

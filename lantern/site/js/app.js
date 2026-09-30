@@ -118,10 +118,12 @@
   function startFeed() {
     if (state.unsub) state.unsub();
     state.unsub = state.be.subscribe(async (ev) => {
+      if (ev.liquidated?.length) state.sky?.lightning();
       if (ev.liquidated?.length) ev.liquidated.forEach((p) => toast("err", "Position liquidated", `${state.markets[p.marketId]?.symbol || ""} ${p.isLong ? "long" : "short"} fell below maintenance margin.`, 8000));
       const prev = state.markets.map((m) => m.price);
       await loadMarkets();
       if (state.be.demo) state.hist.clear(); // simulated feed moves every tick
+      updateWeather();
       window.LN_TOOLS.alerts.check(state.markets).forEach((a) => toast("alert", `${a.symbol} is ${a.dir} ${money(a.price)}`, `Now ${pxFmt(a.now)}`, 9000));
       if (viewTick) viewTick(prev);
       wallet();
@@ -193,11 +195,19 @@
 
   // a single oracle update still deserves a line: hold it flat until now
   const withNow = (pts) => (pts.length === 1 ? [pts[0], { t: Math.max(pts[0].t + 60, Math.floor(Date.now() / 1000)), p: pts[0].p }] : pts);
-  function chart(host, pts, fmt) {
-    pts = withNow(pts);
+  // price chart: timeframe filter, hover crosshair, and drag-to-measure between two points
+  function chart(host, input, fmt) {
+    let all = withNow(input), range = 86400, pts = all;
     host.innerHTML = `<canvas></canvas><div class="tip"></div>`;
     const c = host.querySelector("canvas"), tip = host.querySelector(".tip");
-    let hover = -1, entries = [];
+    let hover = -1, entries = [], sel = null, dragging = false;
+    const apply = () => {
+      const end = all.length ? all[all.length - 1].t : 0;
+      pts = all.filter((p) => p.t >= end - range);
+      if (pts.length < 2) pts = all.slice(-2);
+      sel = null;
+    };
+    apply();
     const draw = () => {
       const { ctx, w, h } = fit(c);
       ctx.clearRect(0, 0, w, h);
@@ -212,19 +222,30 @@
       ctx.textAlign = "center";
       for (let i = 0; i <= 3; i++) { const t = t0 + (ts * i) / 3; ctx.fillText(fmt.time(t), Math.min(Math.max(X(t), 28), w - R - 28), h - 7); }
       const up = pts[pts.length - 1].p >= pts[0].p, col = cssv(up ? "--long" : "--short");
+      // measured band
+      if (sel && sel.b !== undefined && sel.a !== sel.b) {
+        const [i0, i1] = sel.a < sel.b ? [sel.a, sel.b] : [sel.b, sel.a];
+        const pa = pts[i0], pb = pts[i1], chg = ((pb.p - pa.p) / pa.p) * 100, mc = cssv(chg >= 0 ? "--long" : "--short");
+        ctx.fillStyle = alpha(mc, 0.1); ctx.fillRect(X(pa.t), T, X(pb.t) - X(pa.t), h - T - Bm);
+        ctx.strokeStyle = mc; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(X(pa.t), Y(pa.p)); ctx.lineTo(X(pb.t), Y(pb.p)); ctx.stroke(); ctx.setLineDash([]);
+        const label = `${chg >= 0 ? "+" : "−"}${Math.abs(chg).toFixed(2)}% · ${fmt.value(pb.p - pa.p).replace("$-", "−$")} · ${Math.round((pb.t - pa.t) / 60)} min`;
+        ctx.font = "600 12px 'DM Mono', monospace"; const tw = ctx.measureText(label).width + 16;
+        const lx = Math.min(Math.max((X(pa.t) + X(pb.t)) / 2 - tw / 2, L), w - R - tw);
+        ctx.fillStyle = cssv("--solid"); ctx.fillRect(lx, T + 4, tw, 24); ctx.fillStyle = mc; ctx.textAlign = "left"; ctx.fillText(label, lx + 8, T + 20);
+        ctx.font = "11px 'DM Mono', monospace";
+      }
       ctx.beginPath(); pts.forEach((p, i) => (i ? ctx.lineTo(X(p.t), Y(p.p)) : ctx.moveTo(X(p.t), Y(p.p))));
       ctx.strokeStyle = col; ctx.lineWidth = 1.7; ctx.stroke();
       ctx.lineTo(X(t1), h - Bm); ctx.lineTo(X(t0), h - Bm); ctx.closePath();
       const g = ctx.createLinearGradient(0, T, 0, h - Bm); g.addColorStop(0, alpha(col, .19)); g.addColorStop(1, alpha(col, 0)); ctx.fillStyle = g; ctx.fill();
-      // position entry and liquidation lines
       for (const e of entries) {
+        if (e.v < mn || e.v > mx) continue;
         const y = Y(e.v); ctx.setLineDash([4, 4]); ctx.strokeStyle = e.color; ctx.beginPath(); ctx.moveTo(L, y); ctx.lineTo(w - R + 4, y); ctx.stroke(); ctx.setLineDash([]);
         ctx.fillStyle = e.color; ctx.textAlign = "left"; ctx.fillText(e.label, L + 4, y - 5);
       }
       const last = pts[pts.length - 1], ly = Y(last.p);
       ctx.fillStyle = col; ctx.beginPath(); ctx.arc(X(last.t), ly, 3.5, 0, 7); ctx.fill();
-      if (!reduce) { ctx.strokeStyle = alpha(col, .4); ctx.beginPath(); ctx.arc(X(last.t), ly, 3.5 + ((performance.now() / 60) % 10), 0, 7); ctx.stroke(); }
-      if (hover >= 0) {
+      if (hover >= 0 && hover < pts.length && !dragging) {
         const p = pts[hover], x = X(p.t), y = Y(p.p);
         ctx.strokeStyle = cssv("--line-2"); ctx.beginPath(); ctx.moveTo(x, T); ctx.lineTo(x, h - Bm); ctx.stroke();
         ctx.fillStyle = cssv("--ink"); ctx.beginPath(); ctx.arc(x, y, 3.5, 0, 7); ctx.fill();
@@ -233,11 +254,21 @@
       } else tip.style.opacity = 0;
       draw.X = X;
     };
-    c.addEventListener("pointermove", (e) => { if (!draw.X) return; let bi = 0, bd = 1e9; pts.forEach((p, i) => { const d = Math.abs(draw.X(p.t) - e.offsetX); if (d < bd) { bd = d; bi = i; } }); hover = bi; draw(); });
-    c.addEventListener("pointerleave", () => { hover = -1; draw(); });
+    const idxAt = (x) => { let bi = 0, bd = 1e9; pts.forEach((p, i) => { const d = Math.abs(draw.X(p.t) - x); if (d < bd) { bd = d; bi = i; } }); return bi; };
+    c.style.touchAction = "none";
+    c.addEventListener("pointerdown", (e) => { if (!draw.X) return; dragging = true; c.setPointerCapture(e.pointerId); sel = { a: idxAt(e.offsetX) }; draw(); });
+    c.addEventListener("pointermove", (e) => { if (!draw.X) return; const i = idxAt(e.offsetX); if (dragging) sel.b = i; else hover = i; draw(); });
+    c.addEventListener("pointerup", () => { dragging = false; if (sel && (sel.b === undefined || sel.b === sel.a)) sel = null; draw(); });
+    c.addEventListener("pointerleave", () => { hover = -1; if (!dragging) draw(); });
+    c.addEventListener("dblclick", () => { sel = null; draw(); });
     new ResizeObserver(draw).observe(host);
     draw();
-    return { update(np, ne) { pts = withNow(np); entries = ne || entries; draw(); }, setEntries(ne) { entries = ne; draw(); } };
+    return {
+      update(np, ne) { const keep = sel; all = withNow(np); const end = all[all.length - 1]?.t ?? 0; pts = all.filter((p) => p.t >= end - range); if (pts.length < 2) pts = all.slice(-2); sel = keep && keep.b !== undefined && Math.max(keep.a, keep.b) < pts.length ? keep : null; entries = ne || entries; draw(); },
+      setEntries(ne) { entries = ne; draw(); },
+      setRange(r) { range = r; apply(); draw(); },
+      measured: () => sel && sel.b !== undefined && sel.a !== sel.b,
+    };
   }
 
   // ───────────────────────── clocks ─────────────────────────
@@ -265,6 +296,19 @@
     return true;
   }
   let clockTimer = null;
+
+  function shortcuts() {
+    if ($(".shortcuts")) { $(".shortcuts").remove(); return; }
+    const d = document.createElement("div");
+    d.className = "cmdk shortcuts";
+    d.innerHTML = `<div class="cmdk__box" role="dialog" aria-label="Keyboard shortcuts"><div style="padding:20px 22px 6px"><span class="label">Keyboard</span><h2 class="h3" style="margin:8px 0 0">Shortcuts</h2></div><ul>${[
+      ["Ctrl K or /", "Search markets and pages"], ["L / S", "Choose long or short"], ["1 – 9, 0", "Set leverage (0 = 10×)"], ["M", "Jump to the margin field"],
+      ["← / →", "Previous or next market"], ["?", "Show or hide this list"], ["Esc", "Close"],
+    ].map(([k, v]) => `<li><span>${v}</span><span class="kbd">${k}</span></li>`).join("")}</ul></div>`;
+    d.addEventListener("click", (e) => { if (e.target === d) d.remove(); });
+    document.body.appendChild(d);
+  }
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") $(".shortcuts")?.remove(); });
 
   // ───────────────────────── views ─────────────────────────
   const views = {};
@@ -323,7 +367,7 @@
     </div></section>
 
     <section class="section" style="padding-top:16px"><div class="wrap">
-      <div class="head"><div><span class="kicker">Markets</span><h2 class="h2">Eight names. Two directions.</h2></div><span class="faint small mono" id="feedNote"></span></div>
+      <div class="head"><div><span class="kicker">Markets</span><h2 class="h2">Eight names. Two directions.</h2></div><div class="row"><span class="weather" data-weather></span><span class="faint small mono" id="feedNote"></span></div></div>
       <div class="board" id="board"><div class="empty">Loading markets…</div></div>
     </div></section>
 
@@ -358,6 +402,7 @@
     });
     $("#plate").addEventListener("ring", (e) => { const m = state.markets[e.detail]; if (m) location.hash = `#/trade/${m.symbol}`; });
     board($("#board"));
+    updateWeather();
     T.heatmap($("#heat"), state.markets, state.markets.map((m) => change24(m.id)));
     T.timeline($("#tlHome"));
     $("#feedNote").textContent = state.net.demo ? "Simulated feed · updates every 3 s" : `Oracle feed · ${state.net.name}`;
@@ -386,7 +431,7 @@
   views.markets = async (params) => {
     let filter = params.get("show") === "watch" ? "watch" : "all", q = "";
     main.innerHTML = `<section class="page"><div class="wrap">
-      <div class="head"><div><span class="kicker">Markets</span><h1 class="h2">All markets</h1></div><span class="faint small mono" id="feedNote"></span></div>
+      <div class="head"><div><span class="kicker">Markets</span><h1 class="h2">All markets</h1></div><div class="row"><span class="weather" data-weather></span><span class="faint small mono" id="feedNote"></span></div></div>
       <div class="filterbar"><button class="chipbtn" data-f="all">All</button><button class="chipbtn" data-f="watch">Watchlist</button><input class="search" id="mSearch" placeholder="Search ticker or name" aria-label="Search markets"><span class="faint small">Press <span class="kbd">/</span> to jump anywhere</span></div>
       <div class="board" id="board"><div class="empty">Loading markets…</div></div>
     </div></section>`;
@@ -397,6 +442,9 @@
     $$("[data-f]").forEach((b) => (b.onclick = () => { filter = b.dataset.f; render(); }));
     $("#mSearch").oninput = (e) => { q = e.target.value.trim().toLowerCase(); render(); };
     render();
+    await Promise.all(state.markets.map((m) => loadHist(m.id)));
+    updateWeather();
+    if (!$("#feedNote")) return;
     $("#feedNote").textContent = state.net.demo ? "Simulated feed · updates every 3 s" : `Oracle feed · ${state.net.name}`;
     onTick((prev) => $("#board") && updateBoard($("#board"), prev));
   };
@@ -452,7 +500,11 @@
         <div class="tradehead__px"><div class="big" id="tPx">${pxFmt(toPx(m.price))}</div><div class="mono small"><span id="tCh"></span> · <span class="faint" id="tUpd"></span></div></div></div>
       <div class="tgrid">
         <div>
-          <div class="panel"><div class="chart" id="chart"></div></div>
+          <div class="panel">
+            <div class="chartbar"><div class="seg seg--sm" id="tf" role="group" aria-label="Timeframe"><button type="button" data-r="3600">1h</button><button type="button" data-r="21600">6h</button><button type="button" data-r="86400" class="on">24h</button></div><span class="faint small">Drag across the chart to measure · double-click to clear</span></div>
+            <div class="chart" id="chart"></div>
+            <div class="lsbar" id="lsbar" aria-label="Open interest, long versus short"><div class="lsbar__track"><i class="lsbar__long"></i><i class="lsbar__short"></i></div><div class="lsbar__legend"><span class="long" id="lsL"></span><span class="faint">Open interest</span><span class="short" id="lsS"></span></div></div>
+          </div>
           <div class="panel"><div class="head" style="margin-bottom:12px"><span class="label">Your positions</span><span class="faint small" id="posNote"></span></div><div id="positions"></div></div>
         </div>
         <form class="panel" id="order" novalidate>
@@ -463,9 +515,12 @@
             <input type="range" class="lev" id="lev" min="1" max="${m.maxLeverage}" step="1" value="${lev}">
             <div class="levticks">${[1, 2, 3, 5, m.maxLeverage].filter((v, i, a) => a.indexOf(v) === i).map((v) => `<button type="button" data-l="${v}">${v}×</button>`).join("")}</div></div>
           <dl class="summary" id="sum"></dl>
+          <div class="whatif" id="whatif"><div class="fieldhead"><label class="label" for="wi">What if the price moves</label><b class="mono" id="wiV">+0.0%</b></div>
+            <input type="range" class="lev" id="wi" min="-20" max="20" step="0.5" value="0" aria-describedby="wiOut"><div class="levticks"><span>−20%</span><span>0</span><span>+20%</span></div>
+            <p class="whatif__out" id="wiOut">Enter margin to simulate.</p></div>
           <button class="btn btn--block" id="go" type="submit" style="height:52px"></button>
           ${state.be.canFaucet ? `<button class="btn btn--ghost btn--block btn--sm" id="faucet" type="button" style="margin-top:10px">Get 5,000 test USDG</button>` : ""}
-          <p class="faint small" style="margin:14px 0 0">Liquidation happens when equity falls below ${Number(p?.maintenanceBps ?? 500n) / 100}% of position size. Fees: ${Number(p?.feeBps ?? 10n) / 100}% on open and on close.</p>
+          <p class="faint small" style="margin:14px 0 0"><button type="button" class="linkbtn" id="kbdHelp">Keyboard shortcuts</button> · Liquidation happens when equity falls below ${Number(p?.maintenanceBps ?? 500n) / 100}% of position size. Fees: ${Number(p?.feeBps ?? 10n) / 100}% on open and on close.</p>
         </form>
       </div>
     </div></section>`;
@@ -474,6 +529,16 @@
     if (!$("#chart")) return;
     const fmt = { axis: (v) => pxFmt(v), value: (v) => pxFmt(v), time: (t) => new Date(t * 1000).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }), full: (t) => new Date(t * 1000).toLocaleString() };
     const ch = chart($("#chart"), hist, fmt);
+    $$("#tf button").forEach((b) => (b.onclick = () => { $$("#tf button").forEach((x) => x.classList.toggle("on", x === b)); ch.setRange(Number(b.dataset.r)); }));
+    function lsbar() {
+      const cur = state.markets[m.id]; if (!$("#lsbar")) return;
+      const l = toUsd(cur.longNotional), sh = toUsd(cur.shortNotional), tot = l + sh;
+      const lp = tot ? (l / tot) * 100 : 50;
+      $(".lsbar__long").style.width = `${lp}%`; $(".lsbar__short").style.width = `${100 - lp}%`;
+      if (!tot) { $("#lsL").textContent = ""; $("#lsS").textContent = ""; $("#lsbar .lsbar__legend .faint").textContent = "No open interest yet"; return; }
+      $("#lsbar .lsbar__legend .faint").textContent = "Open interest";
+      $("#lsL").textContent = `Long ${lp.toFixed(0)}% · ${compact(l)}`; $("#lsS").textContent = `${compact(sh)} · ${(100 - lp).toFixed(0)}% Short`;
+    }
     let positions = [];
 
     async function refreshPositions() {
@@ -507,6 +572,17 @@
       let liq = 0n;
       if (size > 0n) { const k = (((size * maint) / BPS - net) * e) / size; liq = side === "long" ? e + k : e - k; if (liq < 0n) liq = 0n; }
       $("#sum").innerHTML = [["Position size", money(toUsd(size))], ["Entry price (now)", pxFmt(toPx(e))], ["Liquidation price", size > 0n ? pxFmt(toPx(liq)) : "—"], ["Opening fee", money(toUsd(fee))]].map(([a, b2]) => `<div><dt>${a}</dt><dd>${b2}</dd></div>`).join("");
+      const mv = Number($("#wi").value);
+      $("#wiV").textContent = `${mv >= 0 ? "+" : "−"}${Math.abs(mv).toFixed(1)}%`;
+      if (size > 0n) {
+        const sz = toUsd(size), nt = toUsd(net), dir = side === "long" ? 1 : -1;
+        const pnl = sz * (mv / 100) * dir, eq = nt + pnl, maintV = sz * Number(maint) / 10000;
+        const closeFee = sz * Number(feeBps) / 10000, back = Math.max(0, eq - closeFee);
+        const liqd = eq < maintV;
+        $("#wiOut").innerHTML = liqd ? `<span class="short">Liquidated.</span> A ${Math.abs(mv).toFixed(1)}% move ${mv * dir < 0 ? "against you" : ""} wipes out this position's margin.` :
+          `<span class="${pnl >= 0 ? "long" : "short"}">${money(pnl)}</span> (${pct((pnl / toUsd(margin)) * 100)} on margin). You'd get back about ${money(back)} after the closing fee.`;
+        $("#whatif").classList.toggle("is-liq", liqd);
+      } else { $("#wiOut").textContent = "Enter margin to simulate."; $("#whatif").classList.remove("is-liq"); }
       const go = $("#go");
       go.className = `btn btn--block ${side === "long" ? "btn--jade" : "btn--cinnabar"}`;
       go.disabled = false;
@@ -537,13 +613,27 @@
     });
     const onWallet = () => { if ($("#order")) { refreshBal(); refreshPositions(); } };
     document.addEventListener("ln:wallet", onWallet);
-    viewCleanup = () => document.removeEventListener("ln:wallet", onWallet);
+    $("#wi").oninput = summary;
+    $("#kbdHelp").onclick = shortcuts;
+    // keyboard shortcuts on the trade screen
+    const keys = (e) => {
+      if (e.ctrlKey || e.metaKey || e.altKey || /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || "") || document.querySelector(".cmdk")) return;
+      const k = e.key.toLowerCase();
+      if (k === "l" || k === "s") { side = k === "l" ? "long" : "short"; summary(); }
+      else if (/^[0-9]$/.test(k)) { const v = k === "0" ? 10 : Number(k); lev = Math.min(m.maxLeverage, v); $("#lev").value = lev; ls.set("ln-lev", String(lev)); summary(); }
+      else if (k === "m") { e.preventDefault(); $("#margin").focus(); }
+      else if (k === "?") { e.preventDefault(); shortcuts(); }
+      else if (k === "arrowright" || k === "arrowleft") { const i = (m.id + (k === "arrowright" ? 1 : state.markets.length - 1)) % state.markets.length; location.hash = `#/trade/${state.markets[i].symbol}`; }
+      else return;
+    };
+    document.addEventListener("keydown", keys);
+    viewCleanup = () => { document.removeEventListener("ln:wallet", onWallet); document.removeEventListener("keydown", keys); $(".shortcuts")?.remove(); };
 
-    head(); summary(); refreshBal(); refreshPositions();
+    head(); summary(); refreshBal(); refreshPositions(); lsbar();
     let lastUpd = state.markets[m.id].updatedAt;
     onTick(async () => {
       if (!$("#chart")) return;
-      head();
+      head(); lsbar();
       const upd = state.markets[m.id].updatedAt;
       if (state.be.demo || upd !== lastUpd) { lastUpd = upd; hist = await loadHist(m.id, true); if (!$("#chart")) return; ch.update(hist); }
       summary();
@@ -716,6 +806,16 @@
   startFeed();
   route();
 
+  state.sky = window.LN_SKY.init();
+  function updateWeather() {
+    const ch = state.markets.map((m) => change24(m.id)).filter(isFinite);
+    if (!ch.length) return;
+    const avg = ch.reduce((a, b) => a + b, 0) / ch.length;
+    state.sky.setMood(avg);
+    const label = avg <= -1.5 ? "Storm" : avg < -0.3 ? "Rain" : avg < 0.3 ? "Overcast" : avg < 1.5 ? "Breaking cloud" : "Sun through cloud";
+    const icon = avg < -0.3 ? '<path d="M7 17a4 4 0 1 1 1-7.9A5 5 0 0 1 18 10a3.5 3.5 0 0 1-1 7z"/><path d="M9 20l-1 2M13 20l-1 2M17 20l-1 2"/>' : avg < 0.3 ? '<path d="M7 18a4 4 0 1 1 1-7.9A5 5 0 0 1 18 11a3.5 3.5 0 0 1-1 7z"/>' : '<circle cx="8" cy="8" r="3"/><path d="M8 1v2M1 8h2M3 3l1.4 1.4M13 3l-1.4 1.4"/><path d="M9 19a4 4 0 1 1 1-7.9A5 5 0 0 1 20 12a3.5 3.5 0 0 1-1 7z"/>';
+    $$("[data-weather]").forEach((el) => { el.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">${icon}</svg>${label} · markets ${pct(avg)} avg`; el.title = "The sky follows the average 24h change across all eight markets."; });
+  }
   window.LN_TOOLS.initTheme();
   window.LN_TOOLS.initPalette(() => state.markets);
   if (!state.markets.length) loadMarkets();
