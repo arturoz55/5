@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Nightfall cards</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@600..800&family=Manrope:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root { --ink: #e9edf7; --ink2: #b0b9cb; --ink3: #7f8aa1; --cobalt: #7d95ff; --long: #3ad39c; --short: #ff6b73; --zec: #f4b728; --bg: #0b1019;
+    --display: "Syne", "Manrope", system-ui, sans-serif; --sans: "Manrope", system-ui, sans-serif; --mono: "DM Mono", ui-monospace, monospace; }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { background: var(--bg); color: var(--ink); font-family: var(--sans); overflow: hidden; }
+  .card { position: relative; overflow: hidden; background: var(--bg); }
+  .photo { position: absolute; inset: -4%; background: url("overcast-1920.jpg") center 35% / cover no-repeat; filter: brightness(.8) saturate(.95) contrast(1.05); }
+  .veil { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(8,11,18,.15), rgba(8,11,18,.6)), radial-gradient(90% 80% at 20% 50%, rgba(8,11,18,.55), transparent 70%); }
+  canvas.rain { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .content { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: space-between; }
+  .brand { display: flex; align-items: center; gap: 14px; font: 800 30px/1 var(--display); letter-spacing: -.03em; text-transform: lowercase; }
+  .brand img { width: 46px; height: 46px; }
+  .kicker { font: 500 16px/1 var(--mono); letter-spacing: .16em; text-transform: uppercase; color: var(--cobalt); display: flex; align-items: center; gap: 12px; }
+  .kicker::before { content: ""; width: 16px; height: 16px; border-radius: 50%; border: 2px solid currentColor; box-shadow: inset 0 0 0 3px var(--bg), inset 0 0 0 8px currentColor; }
+  .display { font: 800 110px/.92 var(--display); letter-spacing: -.045em; text-transform: lowercase; text-shadow: 0 4px 30px rgba(0,0,0,.45); }
+  .display em { font-style: normal; color: var(--cobalt); }
+  .chips { display: flex; gap: 10px; flex-wrap: wrap; }
+  .chip { height: 42px; padding: 0 18px; display: inline-flex; align-items: center; gap: 10px; border-radius: 999px; background: rgba(17,23,36,.72); box-shadow: inset 0 0 0 1px rgba(233,237,247,.18); font: 500 17px var(--mono); color: var(--ink2); backdrop-filter: blur(10px); }
+  .chip i { width: 8px; height: 8px; border-radius: 50%; background: var(--cobalt); }
+  .glass { border-radius: 22px; background: rgba(17,23,36,.8); box-shadow: inset 0 0 0 1px rgba(233,237,247,.14), 0 30px 60px -30px #000; padding: 26px; backdrop-filter: blur(14px); }
+  .mono { font-family: var(--mono); }
+  .long { color: var(--long); } .short { color: var(--short); }
+  .big-logo { position: absolute; width: 520px; height: 520px; opacity: .9; filter: drop-shadow(0 0 40px rgba(125,149,255,.35)); }
+  .orbit { position: absolute; border-radius: 50%; border: 1.5px solid rgba(125,149,255,.45); transform: rotate(-35deg) scaleY(.42); }
+  .step b { font: 500 15px var(--mono); color: var(--ink3); letter-spacing: .12em; }
+  .step h3 { font: 700 38px/1 var(--display); margin: 14px 0 10px; letter-spacing: -.02em; }
+  .step p { color: var(--ink2); font-size: 19px; line-height: 1.45; }
+  .row { display: flex; gap: 16px; }
+  table.board { width: 100%; border-collapse: collapse; font: 500 22px var(--mono); }
+  table.board td { padding: 12px 8px; border-bottom: 1px solid rgba(233,237,247,.1); }
+  table.board td:first-child { font: 700 24px var(--display); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+const P = new URLSearchParams(location.search), kind = P.get("card") || "launch";
+const SIZES = { avatar: [400, 400], header: [1500, 500], launch: [1200, 675], how: [1200, 675], markets: [1200, 675], wallet: [1200, 675], square: [1080, 1080], video: [1280, 720] };
+const [W, H] = SIZES[kind];
+document.body.style.width = W + "px"; document.body.style.height = H + "px";
+const brand = (s = 30) => `<div class="brand" style="font-size:${s}px"><img src="logo-light.png" alt="" style="width:${s * 1.5}px;height:${s * 1.5}px">nightfall</div>`;
+const bg = `<div class="photo"></div><div class="veil"></div><canvas class="rain" id="rain"></canvas>`;
+const M = [["BABA", 124.17, 7.86], ["PDD", 97.8, -15.37], ["JD", 34.2, 0.69], ["BIDU", 91.66, -2.08], ["NTES", 121.06, -7.33], ["BILI", 21.45, -2.83], ["LI", 22.11, -9.47], ["NIO", 5.277, 0.32]];
+
+const cards = {
+  avatar: () => `<div class="card" style="width:400px;height:400px;display:grid;place-items:center;background:radial-gradient(circle at 50% 45%, #1b2440, #0b1019 70%)"><img src="logo-light.png" style="width:300px;height:300px;filter:drop-shadow(0 0 30px rgba(125,149,255,.5))"></div>`,
+  header: () => `<div class="card" style="width:1500px;height:500px">${bg}<div class="content" style="padding:70px 90px 60px 390px">
+      <div class="kicker">The night desk</div>
+      <h1 class="display" style="font-size:104px">china's giants,<br><em>around the clock.</em></h1>
+      <div class="chips"><span class="chip"><i></i>8 US-listed Chinese stocks</span><span class="chip"><i></i>Long or short · 1–10×</span><span class="chip"><i></i>Margin in USDG</span></div></div></div>`,
+  launch: () => `<div class="card" style="width:1200px;height:675px">${bg}<div class="content" style="padding:60px 70px">
+      ${brand(30)}
+      <div><div class="kicker" style="margin-bottom:24px">Preview now open</div><h1 class="display">china's giants,<br><em>around the clock.</em></h1></div>
+      <div class="chips"><span class="chip"><i></i>Real wallets: MetaMask, Phantom, Rabby</span><span class="chip"><i></i>Tools & calculators</span><span class="chip"><i></i>Trading at launch</span></div></div></div>`,
+  how: () => `<div class="card" style="width:1200px;height:675px">${bg}<div class="content" style="padding:56px 64px">
+      <div style="display:flex;justify-content:space-between;align-items:center">${brand(26)}<span class="kicker">How a trade works</span></div>
+      <h1 class="display" style="font-size:78px">margin in, <em>position out.</em></h1>
+      <div class="row">
+        <div class="glass step" style="flex:1"><b>01</b><h3>Post margin</h3><p>USDG in. 0.1% fee on size to open, 0.1% to close.</p></div>
+        <div class="glass step" style="flex:1"><b>02</b><h3>Pick a side</h3><p>Long or short, 1× to 10×, on eight Chinese giants.</p></div>
+        <div class="glass step" style="flex:1"><b>03</b><h3>Close or be closed</h3><p>Below 5% equity anyone can liquidate. Plan with the tools first.</p></div>
+      </div></div></div>`,
+  markets: () => `<div class="card" style="width:1200px;height:675px">${bg}<div class="content" style="padding:56px 64px;flex-direction:row;gap:48px;align-items:center">
+      <div style="flex:1;display:flex;flex-direction:column;gap:28px">${brand(26)}<h1 class="display" style="font-size:88px">eight names.<br><em>two directions.</em></h1><p style="font-size:22px;color:var(--ink2);max-width:22ch">Alibaba to NIO, long or short, while Shanghai sleeps.</p></div>
+      <div class="glass" style="width:470px"><table class="board">${M.map(([s, p, c]) => `<tr><td>${s}</td><td style="text-align:right">$${p.toFixed(p < 10 ? 3 : 2)}</td><td style="text-align:right" class="${c >= 0 ? "long" : "short"}">${c >= 0 ? "+" : "−"}${Math.abs(c).toFixed(2)}%</td></tr>`).join("")}</table><p class="mono" style="margin-top:12px;font-size:13px;color:var(--ink3)">Preview prices, simulated</p></div></div></div>`,
+  wallet: () => `<div class="card" style="width:1200px;height:675px">${bg}<div class="content" style="padding:56px 64px">
+      ${brand(26)}
+      <div style="display:flex;gap:40px;align-items:center">
+        <h1 class="display" style="font-size:84px;flex:1">bring your<br><em>own wallet.</em></h1>
+        <div class="glass" style="width:420px;display:grid;gap:10px">${["MetaMask", "Phantom", "Rabby", "Coinbase Wallet"].map((w, i) => `<div style="display:flex;gap:14px;align-items:center;padding:14px;border-radius:14px;background:rgba(40,50,70,.55)"><span style="width:34px;height:34px;border-radius:10px;background:${["#f6851b", "#ab9ff2", "#7084ff", "#0052ff"][i]}"></span><b style="font-size:20px">${w}</b><span class="mono" style="margin-left:auto;color:var(--ink3);font-size:14px">${i ? "" : "Detected"}</span></div>`).join("")}</div>
+      </div>
+      <p style="font-size:20px;color:var(--ink2)">Address and network only. Never your seed phrase or keys.</p></div></div>`,
+  square: () => `<div class="card" style="width:1080px;height:1080px">${bg}
+      <span class="orbit" style="width:760px;height:760px;left:160px;top:140px"></span><span class="orbit" style="width:900px;height:900px;left:90px;top:70px;border-color:rgba(233,237,247,.18)"></span>
+      <img class="big-logo" src="logo-light.png" style="left:280px;top:260px">
+      <div class="content" style="padding:80px"><span class="kicker">Nightfall</span><div><h1 class="display" style="font-size:120px">trade the<br><em>night shift.</em></h1><p style="font-size:26px;color:var(--ink2);margin-top:18px">While Shanghai sleeps, New York prices its giants.</p></div></div></div>`,
+  video: () => `<div class="card" style="width:1280px;height:720px">${bg}<div id="scene" class="content" style="padding:70px 80px"></div></div>`,
+};
+document.getElementById("root").innerHTML = cards[kind]();
+
+// rain overlay (same weather as the site)
+const c = document.getElementById("rain");
+if (c) {
+  const ctx = c.getContext("2d"); c.width = W * 2; c.height = H * 2; ctx.scale(2, 2);
+  let seed = 7; const r = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const drops = Array.from({ length: Math.round(W / 5) }, () => ({ x: r() * W, y: r() * H, l: 10 + r() * 18, a: 0.2 + r() * 0.45, v: 700 + r() * 500 }));
+  const draw = (dt) => { ctx.clearRect(0, 0, W, H); for (const d of drops) { d.y += d.v * dt; d.x -= d.v * dt * 0.15; if (d.y > H) { d.y = -20; d.x = r() * (W + 100); } ctx.strokeStyle = `rgba(210,220,235,${d.a * 0.55})`; ctx.beginPath(); ctx.moveTo(d.x, d.y); ctx.lineTo(d.x - d.l * 0.15, d.y + d.l); ctx.stroke(); } };
+  if (kind === "video") { let last = performance.now(); (function loop(n) { draw(Math.min(0.05, (n - last) / 1000)); last = n; requestAnimationFrame(loop); })(last); } else draw(0);
+}
+
+// video: ~18 s of scenes
+if (kind === "video") {
+  const scene = document.getElementById("scene");
+  const S = [
+    [2800, `<div></div><div style="display:grid;place-items:center;gap:26px"><img src="logo-light.png" style="width:170px;height:170px;filter:drop-shadow(0 0 30px rgba(125,149,255,.5))"><div class="brand" style="font-size:72px;justify-content:center">nightfall</div></div><div></div>`],
+    [2800, `<div class="kicker">The night desk</div><h1 class="display" style="font-size:118px">china's giants,<br><em>around the clock.</em></h1><div></div>`],
+    [2800, `<div class="kicker">Eight markets</div><h1 class="display" style="font-size:104px">alibaba to nio.<br><em>long or short.</em></h1><div class="chips"><span class="chip"><i></i>1× to 10×</span><span class="chip"><i></i>Margin in USDG</span></div>`],
+    [2800, `<div class="kicker">Tools</div><h1 class="display" style="font-size:104px">plan it<br><em>before you trade it.</em></h1><div class="chips"><span class="chip"><i></i>PnL & liquidation</span><span class="chip"><i></i>Risk sizer</span><span class="chip"><i></i>Exchange clock</span></div>`],
+    [2800, `<div class="kicker">Wallets</div><h1 class="display" style="font-size:104px">metamask. phantom.<br><em>your keys stay yours.</em></h1><div></div>`],
+    [3400, `${brand(40)}<h1 class="display" style="font-size:112px">preview <em>open now.</em></h1><div class="chips"><span class="chip"><i></i>Trading opens at launch</span><span class="chip"><i></i>Leverage is risky</span></div>`],
+  ];
+  scene.style.transition = "opacity .5s, transform .9s cubic-bezier(.2,.7,.1,1)";
+  let i = 0;
+  (function next() {
+    if (i >= S.length) { window.__done = true; return; }
+    const [ms, html] = S[i++];
+    scene.style.opacity = 0; scene.style.transform = "translateY(24px)";
+    setTimeout(() => { scene.innerHTML = html; scene.style.opacity = 1; scene.style.transform = "none"; setTimeout(next, ms); }, i === 1 ? 0 : 450);
+  })();
+}
+</script>
+</body>
+</html>

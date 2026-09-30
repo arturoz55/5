@@ -74,6 +74,8 @@ async function pickWallet(p, name) {
     ok((await p.locator("#tickerTrack a").count()) >= 8, "preview: price ticker");
     await p.click('[data-star="JD"]');
     ok(await p.evaluate(() => JSON.parse(localStorage.getItem("ln-watch") || "[]").includes("JD")), "preview: star adds to watchlist");
+    await p.waitForFunction(() => /JD/.test(document.querySelector("#desk")?.textContent || ""));
+    ok(true, "desk: starred market appears in Your watchlist");
     await p.waitForTimeout(800);
     await p.screenshot({ path: `${OUT}/home.png` });
     await overflow(p, "preview home");

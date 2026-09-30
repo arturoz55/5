@@ -362,11 +362,13 @@
         <div class="hero__stats reveal" style="--d:.24s"><div><span class="label">Markets</span><b>8</b></div><div><span class="label">Max leverage</span><b>10×</b></div><div><span class="label">Fee per side</span><b>0.10%</b></div><div><span class="label">Vault</span><b id="heroVault">—</b></div></div>
       </div>
       <div class="reveal" style="--d:.2s">
-        <div class="plate-wrap" id="plateWrap"><canvas id="plate" aria-label="Spinning plate: each ring is one market's recent price path. Drag to spin, click a ring to trade it."></canvas><div class="plate-tip" id="plateTip">Drag to spin · click a ring</div></div>
+        <div class="plate-wrap" id="plateWrap"><span class="orbit orbit--a" aria-hidden="true"></span><span class="orbit orbit--b" aria-hidden="true"></span><canvas id="plate" aria-label="Spinning plate: each ring is one market's recent price path. Drag to spin, click a ring to trade it."></canvas><div class="plate-tip" id="plateTip">Drag to spin · click a ring</div></div>
       </div>
     </div></section>
 
-    <section class="section" style="padding-top:16px"><div class="wrap">
+    <div class="wrap"><div class="divider" aria-hidden="true"><img src="img/logo-light.png" alt="" class="logo__img--light"><img src="img/logo-dark.png" alt="" class="logo__img--dark"></div></div>
+    <section class="section" style="padding-top:8px;padding-bottom:0"><div class="wrap"><div class="desk panel" id="desk"></div></div></section>
+    <section class="section" style="padding-top:36px"><div class="wrap">
       <div class="head"><div><span class="kicker">Markets</span><h2 class="h2">Eight names. Two directions.</h2></div><div class="row"><span class="weather" data-weather></span><span class="faint small mono" id="feedNote"></span></div></div>
       <div class="board" id="board"><div class="empty">Loading markets…</div></div>
     </div></section>
@@ -405,6 +407,7 @@
     updateWeather();
     T.heatmap($("#heat"), state.markets, state.markets.map((m) => change24(m.id)));
     T.timeline($("#tlHome"));
+    renderDesk();
     $("#feedNote").textContent = state.be.preview ? "Preview prices · simulated until launch" : `Oracle feed · ${state.net.name}`;
     const vs = async () => {
       try {
@@ -424,6 +427,7 @@
       await Promise.all(state.markets.map((m) => loadHist(m.id)));
       if (!$("#heat")) return;
       T.heatmap($("#heat"), state.markets, state.markets.map((m) => change24(m.id)));
+      renderDesk();
       vs();
     });
   };
@@ -504,7 +508,21 @@
     }));
   }
 
+  // "Your desk": starred markets and the ones you opened recently, with live prices
+  function renderDesk() {
+    const host = $("#desk"); if (!host) return;
+    const W = window.LN_TOOLS.watch.list();
+    let recent = []; try { recent = JSON.parse(localStorage.getItem("nf-recent") || "[]"); } catch { recent = []; }
+    const bySym = (sy) => state.markets.find((m) => m.symbol === sy);
+    const chip = (m) => { const c = change24(m.id); return `<a class="deskchip" href="#/trade/${esc(m.symbol)}">${badge(m)}<span><b>${esc(m.symbol)}</b><span class="mono small">${pxFmt(toPx(m.price))}</span></span><span class="mono small ${c >= 0 ? "long" : "short"}">${pct(c)}</span></a>`; };
+    const wl = W.map(bySym).filter(Boolean), rc = recent.map(bySym).filter(Boolean).filter((m) => !W.includes(m.symbol)).slice(0, 4);
+    host.innerHTML = `<div class="desk__col"><span class="label">Your watchlist</span><div class="desk__row">${wl.length ? wl.map(chip).join("") : `<p class="faint small">Star any market below and it lands here.</p>`}</div></div>
+      <div class="desk__col"><span class="label">Recently viewed</span><div class="desk__row">${rc.length ? rc.map(chip).join("") : `<p class="faint small">Markets you open show up here.</p>`}</div></div>`;
+  }
+  document.addEventListener("click", (e) => { if (e.target.closest("[data-star]")) setTimeout(renderDesk, 0); });
+
   views.trade = async (params, sym) => {
+    try { const r = JSON.parse(localStorage.getItem("nf-recent") || "[]").filter((x) => x !== String(sym).toUpperCase()); r.unshift(String(sym).toUpperCase()); localStorage.setItem("nf-recent", JSON.stringify(r.slice(0, 6))); } catch { /* ignore */ }
     await loadMarkets();
     const m = state.markets.find((x) => x.symbol === String(sym).toUpperCase());
     if (!m) { views.notfound(); return; }

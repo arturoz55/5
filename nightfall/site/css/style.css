@@ -518,3 +518,29 @@ h1, h2, h3 { text-wrap: balance; }
   .hide-sm { display: none; }
   .logo span { font-size: 18px; }
 }
+
+/* storm decoration */
+.orbit { position: absolute; inset: -4%; border-radius: 50%; border: 1px solid color-mix(in srgb, var(--cobalt) 45%, transparent); pointer-events: none; transform: rotate(-35deg) scaleY(.42); animation: orbitSpin 28s linear infinite; }
+.orbit--b { inset: -9%; border-color: color-mix(in srgb, var(--ink) 16%, transparent); animation-duration: 46s; animation-direction: reverse; }
+.orbit::after { content: ""; position: absolute; top: -4px; left: 50%; width: 8px; height: 8px; border-radius: 50%; background: var(--cobalt); box-shadow: 0 0 14px var(--cobalt); }
+@keyframes orbitSpin { to { transform: rotate(325deg) scaleY(.42); } }
+.divider { display: flex; align-items: center; gap: 18px; margin: 8px 0 0; }
+.divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, transparent, var(--line-2), transparent); }
+.divider img { width: 28px; height: 28px; opacity: .8; animation: breathe 6s ease-in-out infinite; }
+.divider .logo__img--dark { display: none; }
+:root[data-theme="light"] .divider .logo__img--light { display: none; }
+:root[data-theme="light"] .divider .logo__img--dark { display: block; }
+@keyframes breathe { 50% { opacity: .35; transform: rotate(-20deg); } }
+.panel, .stat, .step, .board { transition: box-shadow .4s var(--ease), border-color .4s var(--ease); }
+.panel:hover, .stat:hover, .step:hover { border-color: color-mix(in srgb, var(--cobalt) 35%, var(--line)); box-shadow: var(--shadow), 0 0 0 1px color-mix(in srgb, var(--cobalt) 18%, transparent), 0 20px 60px -30px color-mix(in srgb, var(--cobalt) 55%, transparent); }
+/* your desk */
+.desk { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; }
+@media (max-width: 820px) { .desk { grid-template-columns: 1fr; } }
+.desk__row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.desk__row p { margin: 0; }
+.deskchip { display: inline-flex; align-items: center; gap: 10px; padding: 8px 12px 8px 8px; border-radius: 14px; background: var(--bg-3); transition: transform .2s var(--ease), background .2s; }
+.deskchip:hover { transform: translateY(-2px); background: var(--cobalt-soft); }
+.deskchip .tick__badge { width: 32px; height: 32px; font-size: 9px; }
+.deskchip > span:nth-child(2) { display: grid; line-height: 1.2; }
+
+.hero { overflow-x: clip; }
