@@ -18,10 +18,11 @@ function readDeployments() {
 async function main() {
   const [deployer, ...others] = await ethers.getSigners();
   const { chainId } = await ethers.provider.getNetwork();
-  const treasury = process.env.TREASURY || deployer.address;
+  const owner = process.env.OWNER || deployer.address;
+  const treasury = process.env.TREASURY || owner;
   const minLiq = E(process.env.MIN_LIQUIDITY || "0.1");
 
-  const factory = await ethers.deployContract("ForgeFactory", [deployer.address, treasury, minLiq]);
+  const factory = await ethers.deployContract("ForgeFactory", [owner, treasury, minLiq]);
   await factory.waitForDeployment();
   const receipt = await factory.deploymentTransaction().wait();
   const address = await factory.getAddress();
