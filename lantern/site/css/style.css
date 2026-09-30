@@ -370,3 +370,17 @@ h1, h2, h3 { text-wrap: balance; }
 .whatif__out { margin: 10px 0 0; font-size: 14px; color: var(--ink-2); }
 .whatif__out span { font-family: var(--mono); font-weight: 600; }
 .shortcuts li { cursor: default; }
+
+/* real photo backdrop: "Overcast Mountains" by Aleks Dahlberg (CC0) */
+.backdrop { position: fixed; inset: 0; z-index: -2; overflow: hidden; background: #1a1f27; pointer-events: none; }
+.backdrop__img {
+  position: absolute; inset: -6% -4%; background: url("data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAAgADADASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDpZJAfu1HgtzWJbaxHIM5wfep21YJg8VZkXmVg3PSmyINvUVl3WvDYQmM1jT6vcy5Bcge1Fx2udDJHg8sKZuRRy4rmWvJ3XHmNj601pZCOZCfxp8wcpACR0NTpcHbhiTUGKSoNLDmYsxNJRmigA6UZopKQH//Z") center 35% / cover no-repeat;
+  filter: var(--photo-filter, brightness(.62) saturate(.9) contrast(1.05)) blur(0); transform: translate3d(0, var(--scroll, 0px), 0) scale(1.04);
+  transition: filter 1.2s var(--ease), opacity .8s; animation: drift 60s ease-in-out infinite alternate;
+}
+.backdrop:not(.is-loaded) .backdrop__img { filter: blur(18px) brightness(.55); }
+.backdrop::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, var(--veil-top), var(--veil-bottom)), radial-gradient(120% 90% at 50% 40%, transparent 40%, rgba(0,0,0,.45) 100%); }
+@keyframes drift { from { background-position: 45% 35%; } to { background-position: 55% 38%; } }
+:root[data-theme="light"] .backdrop__img { filter: brightness(1.12) saturate(.85) contrast(.95); }
+:root[data-theme="light"] .backdrop::after { background: linear-gradient(180deg, rgba(236,240,245,.55), rgba(236,240,245,.35)); }
+.sky { z-index: -1; }

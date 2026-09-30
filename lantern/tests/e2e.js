@@ -42,7 +42,9 @@ const overflow = async (p, label) => ok((await p.evaluate(() => document.documen
     await p.goto(BASE + "#/");
     await p.waitForSelector("[data-row]");
     ok((await p.locator("[data-row]").count()) === 8, "demo: board lists 8 markets");
-    ok((await p.locator("canvas.sky").count()) === 1, "demo: mountain sky backdrop rendered");
+    ok((await p.locator("canvas.sky").count()) === 1, "demo: weather layer rendered");
+    await p.waitForFunction(() => document.querySelector(".backdrop")?.classList.contains("is-loaded"), null, { timeout: 10000 });
+    ok(/overcast-(1920|1080)\.jpg/.test(await p.evaluate(() => getComputedStyle(document.querySelector(".backdrop__img")).backgroundImage)), "demo: real mountain photo loaded as background");
     ok(/avg/.test(await p.textContent("[data-weather]")), "demo: weather chip reflects markets");
     ok((await p.locator("#heat a").count()) === 8, "demo: heatmap has 8 tiles");
     ok(/open|closed/.test(await p.textContent("#tlPills")), "demo: exchange timeline shows status");
