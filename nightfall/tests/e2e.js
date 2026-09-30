@@ -40,6 +40,7 @@ async function page(browser, { preview, wallet, width = 1440, height = 900 } = {
   const ctx = await browser.newContext({ viewport: { width, height } });
   await ctx.addInitScript((pv) => { if (!sessionStorage.getItem("i")) { localStorage.clear(); localStorage.setItem("ln-toured", "1"); if (pv) localStorage.setItem("ln-force-preview", "1"); sessionStorage.setItem("i", "1"); } }, !!preview);
   if (wallet) await ctx.addInitScript(walletScript, wallet);
+  await ctx.grantPermissions(["clipboard-read", "clipboard-write"]).catch(() => {});
   const p = await ctx.newPage();
   const errors = [];
   p.on("pageerror", (e) => errors.push(e.message + " @ " + (e.stack || "").split("\n").slice(1, 3).join(" | ")));
@@ -71,6 +72,15 @@ async function pickWallet(p, name) {
     await p.waitForFunction(() => document.querySelector(".backdrop")?.classList.contains("is-loaded"), null, { timeout: 10000 });
     ok(true, "preview: photo background loaded");
     ok((await p.locator("#heat a").count()) === 8, "preview: heatmap has 8 tiles");
+    const CA = "0x667fffd7e7aa22bc279f03d122cf5d7aedc449f4";
+    ok(/NIGHTFALL is live/.test(await p.textContent("#live")), "token: live bar says $NIGHTFALL is live");
+    ok((await p.textContent("#tokenSec")).includes(CA), "token: home section shows the full CA");
+    ok((await p.textContent("#footerCa")).includes(CA), "token: footer shows the CA");
+    ok(/robinhoodchain\.blockscout\.com\/token\/0x667f/.test(await p.getAttribute("#live a", "href")), "token: explorer link points at the token");
+    ok(/Opens at launch/.test(await p.textContent("#tokenSec")), "token: trading desk still marked as opening at launch");
+    await p.click("#tokenCa");
+    await toast(p, /Contract address copied/);
+    ok((await p.evaluate(() => navigator.clipboard.readText())) === CA, "token: copy button puts the CA on the clipboard");
     ok((await p.locator("#tickerTrack a").count()) >= 8, "preview: price ticker");
     await p.click('[data-star="JD"]');
     ok(await p.evaluate(() => JSON.parse(localStorage.getItem("ln-watch") || "[]").includes("JD")), "preview: star adds to watchlist");
@@ -101,6 +111,13 @@ async function pickWallet(p, name) {
     await p.click("#wallet");
     await p.waitForSelector(".wallet-menu");
     ok(/Base/.test(await p.textContent(".wallet-menu")), "wallet: menu shows the wallet's network");
+    await p.keyboard.press("Escape"); await p.mouse.click(5, 600);
+    await p.evaluate(() => { window.__calls = []; const W = window.LN_WALLET; const pr = W.provider; const orig = pr.request.bind(pr); pr.request = (a) => { window.__calls.push(a.method); return orig(a); }; });
+    await p.click("#tokenAdd");
+    await toast(p, /NIGHTFALL added/);
+    const calls = await p.evaluate(() => window.__calls);
+    ok(calls.includes("wallet_switchEthereumChain") && calls.includes("wallet_watchAsset"), "token: Add to wallet switches to Robinhood Chain and calls wallet_watchAsset");
+    await p.click("#wallet"); await p.waitForSelector(".wallet-menu");
     await p.waitForFunction(() => /1\.0000 ETH/.test(document.querySelector("#wmBal")?.textContent || ""));
     ok(true, "wallet: menu shows the native balance from the wallet");
     await p.screenshot({ path: `${OUT}/wallet-menu.png` });

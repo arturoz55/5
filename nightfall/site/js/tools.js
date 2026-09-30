@@ -68,6 +68,7 @@
       { label: "Vault", hint: "Page", href: "#/vault" }, { label: "Tools: calculators & timeline", hint: "Page", href: "#/tools" },
       { label: "Zcash corner: privacy & halvings", hint: "Page", href: "#/zcash" }, { label: "How it works", hint: "Page", href: "#/learn" }, { label: "Take the guided tour", hint: "Action", run: () => window.LN_TOUR && window.LN_TOUR() }, { label: "Risk disclosure", hint: "Page", href: "#/risk" },
       { label: "Switch theme", hint: "Action", run: () => $("#theme")?.click() },
+      ...(window.LN_TOKEN ? [{ label: `Copy $${window.LN_TOKEN.config.symbol} contract address (CA)`, hint: "Token", run: () => window.LN_TOKEN.copy() }, { label: `View $${window.LN_TOKEN.config.symbol} on the explorer`, hint: "Token", run: () => window.open(window.LN_TOKEN.url, "_blank", "noopener") }] : []),
     ];
     let box = null, sel = 0, shown = [];
     function close() { box?.remove(); box = null; }

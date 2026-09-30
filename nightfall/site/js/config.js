@@ -13,5 +13,12 @@ window.LN_CONFIG = {
     { symbol: "LI", name: "Li Auto", sector: "Electric vehicles", seed: 24, hue: 160 },
     { symbol: "NIO", name: "NIO", sector: "Electric vehicles", seed: 5.4, hue: 190 },
   ],
+  // Community token, live on Robinhood Chain (the trading desk itself opens at launch).
+  token: {
+    name: "Nightfall", symbol: "NIGHTFALL", decimals: 18, supply: 1000000000,
+    address: "0x667fffd7e7aa22bc279f03d122cf5d7aedc449f4",
+    chainId: 4663, chainName: "Robinhood Chain", rpc: "https://rpc.mainnet.chain.robinhood.com/rpc",
+    explorer: "https://robinhoodchain.blockscout.com",
+  },
   demo: { name: "Demo network", startBalance: 10000, vault: 250000 },
 };

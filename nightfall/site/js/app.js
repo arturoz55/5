@@ -366,6 +366,7 @@
       </div>
     </div></section>
 
+    ${window.LN_TOKEN ? `<section class="section" style="padding-top:8px;padding-bottom:24px"><div class="wrap" id="tokenSec"></div></section>` : ""}
     <div class="wrap"><div class="divider" aria-hidden="true"><img src="img/logo-light.png" alt="" class="logo__img--light"><img src="img/logo-dark.png" alt="" class="logo__img--dark"></div></div>
     <section class="section" style="padding-top:8px;padding-bottom:0"><div class="wrap"><div class="desk panel" id="desk"></div></div></section>
     <section class="section" style="padding-top:36px"><div class="wrap">
@@ -393,6 +394,7 @@
       <p class="note" style="margin-top:24px">Nightfall is not affiliated with, endorsed by or a broker for any company listed here. You never own the shares. Positions only track their price.</p>
     </div></section>`;
 
+    if ($("#tokenSec")) window.LN_TOKEN.section($("#tokenSec"), connect);
     await loadMarkets();
     if (!$("#board")) return;
     await Promise.all(state.markets.map((m) => loadHist(m.id)));
@@ -913,6 +915,7 @@
     const icon = avg < -0.3 ? '<path d="M7 17a4 4 0 1 1 1-7.9A5 5 0 0 1 18 10a3.5 3.5 0 0 1-1 7z"/><path d="M9 20l-1 2M13 20l-1 2M17 20l-1 2"/>' : avg < 0.3 ? '<path d="M7 18a4 4 0 1 1 1-7.9A5 5 0 0 1 18 11a3.5 3.5 0 0 1-1 7z"/>' : '<circle cx="8" cy="8" r="3"/><path d="M8 1v2M1 8h2M3 3l1.4 1.4M13 3l-1.4 1.4"/><path d="M9 19a4 4 0 1 1 1-7.9A5 5 0 0 1 20 12a3.5 3.5 0 0 1-1 7z"/>';
     $$("[data-weather]").forEach((el) => { el.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">${icon}</svg>${label} · markets ${pct(avg)} avg`; el.title = "The sky follows the average 24h change across all eight markets."; });
   }
+  window.LN_TOKEN?.init({ toast });
   window.NF_FEAT.initBell();
   $("#themeMobile") && ($("#themeMobile").onclick = () => $("#theme").click());
   window.LN_TOOLS.initTheme();

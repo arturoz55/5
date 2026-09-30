@@ -544,3 +544,27 @@ h1, h2, h3 { text-wrap: balance; }
 .deskchip > span:nth-child(2) { display: grid; line-height: 1.2; }
 
 .hero { overflow-x: clip; }
+
+/* ───────────── $NIGHTFALL token: live bar, home section, footer CA ───────────── */
+.livebar { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; padding: 7px var(--gutter); font-size: 13px; background: linear-gradient(90deg, color-mix(in srgb, var(--long) 22%, var(--bg-2)), var(--bg-2) 50%, color-mix(in srgb, var(--cobalt) 22%, var(--bg-2))); border-bottom: 1px solid var(--line); }
+.livebar b { font-weight: 700; }
+.livebar__dot { width: 8px; height: 8px; border-radius: 50%; background: var(--long); box-shadow: 0 0 0 0 color-mix(in srgb, var(--long) 60%, transparent); animation: livePulse 1.8s infinite; flex: none; display: inline-block; }
+@keyframes livePulse { 70% { box-shadow: 0 0 0 8px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
+.livebar__sep { color: var(--ink-3); }
+.livebar__link { font-weight: 600; color: var(--cobalt); white-space: nowrap; }
+.ca { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; padding: 4px 10px; border-radius: 8px; border: 1px solid var(--line-2); background: color-mix(in srgb, var(--bg) 60%, transparent); color: var(--ink); font-size: 12.5px; cursor: pointer; transition: border-color .15s, color .15s; }
+.ca:hover { border-color: var(--cobalt); color: var(--cobalt); }
+.ca__full { overflow-wrap: anywhere; text-align: left; }
+.ca__short { display: none; }
+.livebar .ca__full { display: none; } .livebar .ca__short { display: inline; }
+@media (min-width: 900px) { .livebar .ca__full { display: inline; } .livebar .ca__short { display: none; } }
+.token { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: clamp(20px, 4vw, 48px); align-items: center; border: 1px solid color-mix(in srgb, var(--long) 35%, var(--line)); }
+.token__ca { display: grid; gap: 8px; margin-top: 18px; }
+.token__ca .ca { font-size: 14px; padding: 10px 12px; justify-self: start; }
+.token__facts { margin: 0; display: grid; gap: 0; }
+.token__facts div { display: flex; justify-content: space-between; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.token__facts div:last-child { border-bottom: 0; }
+.token__facts dd { margin: 0; font-weight: 600; text-align: right; }
+@media (max-width: 760px) { .token { grid-template-columns: 1fr; } }
+.footer__ca { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 26px; }
+.footer__ca a { color: var(--cobalt); font-weight: 600; }
