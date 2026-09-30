@@ -124,6 +124,7 @@
       await loadMarkets();
       if (state.be.demo) state.hist.clear(); // simulated feed moves every tick
       updateWeather();
+      renderTicker();
       window.LN_TOOLS.alerts.check(state.markets).forEach((a) => toast("alert", `${a.symbol} is ${a.dir} ${money(a.price)}`, `Now ${pxFmt(a.now)}`, 9000));
       if (viewTick) viewTick(prev);
       wallet();
@@ -448,6 +449,8 @@
     $("#feedNote").textContent = state.net.demo ? "Simulated feed · updates every 3 s" : `Oracle feed · ${state.net.name}`;
     onTick((prev) => $("#board") && updateBoard($("#board"), prev));
   };
+
+  views.zcash = () => { window.LN_ZCASH.render(main); };
 
   views.tools = async () => {
     main.innerHTML = `<section class="page"><div class="wrap">
@@ -774,7 +777,7 @@
     if (!parts.length) view = "home";
     else if (parts[0] === "trade" && parts[1]) { view = "trade"; arg = parts[1]; }
     else if (parts[0] === "trade") { view = "trade"; arg = "BABA"; }
-    else if (["markets", "portfolio", "vault", "tools", "learn", "risk"].includes(parts[0])) view = parts[0];
+    else if (["markets", "portfolio", "vault", "tools", "zcash", "learn", "risk"].includes(parts[0])) view = parts[0];
     else view = "notfound";
     if (viewCleanup) { viewCleanup(); viewCleanup = null; }
     viewTick = null;
@@ -782,7 +785,7 @@
     $$("[data-nav]").forEach((a) => a.classList.toggle("is-on", a.dataset.nav === view || (view === "trade" && a.dataset.nav === "markets")));
     $("#nav").classList.remove("is-open"); $("#burger").setAttribute("aria-expanded", "false");
     window.scrollTo(0, 0);
-    document.title = `Lantern — ${{ home: "the night desk for China's giants", markets: "Markets", trade: `${String(arg).toUpperCase()}`, portfolio: "Portfolio", vault: "Vault", tools: "Tools", learn: "How it works", risk: "Risk disclosure", notfound: "Not found" }[view]}`;
+    document.title = `Lantern — ${{ home: "the night desk for China's giants", markets: "Markets", trade: `${String(arg).toUpperCase()}`, portfolio: "Portfolio", vault: "Vault", tools: "Tools", zcash: "Zcash corner", learn: "How it works", risk: "Risk disclosure", notfound: "Not found" }[view]}`;
     Promise.resolve(views[view](params, arg)).catch((e) => { console.error(e); toast("err", "Something broke", B.friendly(e)); });
   }
 
@@ -807,6 +810,64 @@
   route();
 
   state.sky = window.LN_SKY.init();
+
+  // live price ticker under the nav
+  const prevPx = new Map();
+  function renderTicker() {
+    const tr = $("#tickerTrack");
+    if (!tr || !state.markets.length) return;
+    const items = state.markets.map((m) => {
+      const c = change24(m.id), p = toPx(m.price), was = prevPx.get(m.id);
+      const arrow = was === undefined || was === p ? "" : p > was ? "▲" : "▼";
+      prevPx.set(m.id, p);
+      return `<a href="#/trade/${esc(m.symbol)}"><b>${esc(m.symbol)}</b>${pxFmt(p)}<span class="${c >= 0 ? "long" : "short"}">${arrow} ${pct(c)}</span></a>`;
+    }).join("");
+    tr.innerHTML = items + items.replace(/<a /g, '<a tabindex="-1" aria-hidden="true" ');
+  }
+
+  // guided tour (runs on first visit to the home page, or from the footer link)
+  function tour() {
+    if (location.hash && location.hash !== "#/") { location.hash = "#/"; setTimeout(tour, 900); return; }
+    const steps = [
+      ["#plateWrap", "Spin the plate", "Each ring is one market's last 24 hours. Drag to spin it, and click a ring to open that market."],
+      ["#board", "The market board", "Live prices, 24h change and a mini chart. Star a market to add it to your watchlist, or go long or short straight from a row."],
+      ["#heat", "Heatmap", "Tile colour shows the 24h move and tile size shows open interest. Click any tile to trade it."],
+      ["#tlHome", "Exchange clock", "See when New York, Hong Kong and Shanghai are open, in your local time. Drag the red needle through the day."],
+      ["#cmdkBtn", "Jump anywhere", "Press Ctrl+K or / to search every market and page. On a trade screen, press ? for its keyboard shortcuts."],
+      ['a[data-nav="zcash"]', "Zcash corner", "Interactive explainers on how Zcash hides payments, plus its supply and halving schedule."],
+    ];
+    let i = 0;
+    const hole = document.createElement("div"); hole.className = "tour-hole";
+    const card = document.createElement("div"); card.className = "tour-card"; card.setAttribute("role", "dialog"); card.setAttribute("aria-label", "Guided tour");
+    document.body.append(hole, card);
+    const end = () => { hole.remove(); card.remove(); removeEventListener("keydown", key); try { localStorage.setItem("ln-toured", "1"); } catch { /* ignore */ } };
+    const key = (e) => { if (e.key === "Escape") end(); else if (e.key === "ArrowRight") show(i + 1); else if (e.key === "ArrowLeft") show(i - 1); };
+    addEventListener("keydown", key);
+    function show(n) {
+      if (n < 0) return;
+      if (n >= steps.length) { end(); return; }
+      i = n;
+      const [sel, title, body] = steps[i];
+      let el = $(sel);
+      if (!el || !el.getClientRects().length) { el = $("#burger"); }
+      el.scrollIntoView({ block: "center", behavior: "smooth" });
+      setTimeout(() => {
+        const r = el.getBoundingClientRect(), pad = 8;
+        Object.assign(hole.style, { top: `${r.top - pad}px`, left: `${r.left - pad}px`, width: `${r.width + pad * 2}px`, height: `${r.height + pad * 2}px` });
+        card.innerHTML = `<span class="label">Step ${i + 1} of ${steps.length}</span><h3>${title}</h3><p>${body}</p><div class="row" style="justify-content:space-between"><button class="btn btn--xs btn--ghost" data-t="skip">Skip tour</button><div class="row" style="gap:6px">${i ? '<button class="btn btn--xs btn--ghost" data-t="back">Back</button>' : ""}<button class="btn btn--xs btn--amber" data-t="next">${i === steps.length - 1 ? "Finish" : "Next"}</button></div></div>`;
+        const below = r.bottom + 16 + 200 < innerHeight;
+        const top = below ? r.bottom + 16 : Math.max(16, r.top - card.offsetHeight - 16);
+        card.style.top = `${top}px`; card.style.left = `${Math.min(Math.max(16, r.left), innerWidth - card.offsetWidth - 16)}px`;
+        card.querySelector('[data-t="next"]').onclick = () => show(i + 1);
+        card.querySelector('[data-t="skip"]').onclick = end;
+        const back = card.querySelector('[data-t="back"]'); if (back) back.onclick = () => show(i - 1);
+        card.querySelector('[data-t="next"]').focus();
+      }, 420);
+    }
+    show(0);
+  }
+  $("#tourBtn") && ($("#tourBtn").onclick = tour);
+  window.LN_TOUR = tour;
   function updateWeather() {
     const ch = state.markets.map((m) => change24(m.id)).filter(isFinite);
     if (!ch.length) return;
@@ -818,7 +879,13 @@
   }
   window.LN_TOOLS.initTheme();
   window.LN_TOOLS.initPalette(() => state.markets);
-  if (!state.markets.length) loadMarkets();
+  (state.markets.length ? Promise.resolve() : loadMarkets()).then(async () => {
+    await Promise.all(state.markets.map((m) => loadHist(m.id)));
+    renderTicker(); updateWeather();
+    let toured = null; try { toured = localStorage.getItem("ln-toured"); } catch { toured = "1"; }
+    if (!toured && (!location.hash || location.hash === "#/") && !navigator.webdriver) setTimeout(() => { if ($("#board")) toast("ok", "New here?", "Take the 30-second tour from the footer, or press T.", 7000); }, 1500);
+  });
+  document.addEventListener("keydown", (e) => { if (e.key.toLowerCase() === "t" && !e.ctrlKey && !e.metaKey && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || "") && !$(".tour-card") && !$(".cmdk") && !location.hash.startsWith("#/trade")) tour(); });
   document.addEventListener("ln:theme", () => { if (viewTick) viewTick(); });
 
   window.LN_APP = { state, route };

@@ -66,7 +66,7 @@
       ...getMarkets().map((m) => ({ label: `${m.symbol} · ${m.name}`, hint: "Trade", href: `#/trade/${m.symbol}` })),
       { label: "Markets", hint: "Page", href: "#/markets" }, { label: "Portfolio", hint: "Page", href: "#/portfolio" },
       { label: "Vault", hint: "Page", href: "#/vault" }, { label: "Tools: calculators & timeline", hint: "Page", href: "#/tools" },
-      { label: "How it works", hint: "Page", href: "#/learn" }, { label: "Risk disclosure", hint: "Page", href: "#/risk" },
+      { label: "Zcash corner: privacy & halvings", hint: "Page", href: "#/zcash" }, { label: "How it works", hint: "Page", href: "#/learn" }, { label: "Take the guided tour", hint: "Action", run: () => window.LN_TOUR && window.LN_TOUR() }, { label: "Risk disclosure", hint: "Page", href: "#/risk" },
       { label: "Switch theme", hint: "Action", run: () => $("#theme")?.click() },
     ];
     let box = null, sel = 0, shown = [];

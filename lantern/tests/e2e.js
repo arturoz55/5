@@ -157,6 +157,37 @@ const overflow = async (p, label) => ok((await p.evaluate(() => document.documen
     await p.goto(BASE + "#/markets?show=watch");
     await p.waitForSelector("[data-row]");
     ok((await p.locator("[data-row]").count()) === 1, "markets: watchlist filter shows starred only");
+    // ticker
+    ok((await p.locator("#tickerTrack a").count()) >= 8, "ticker: live prices under the nav");
+    // zcash corner
+    await p.goto(BASE + "#/zcash");
+    await p.waitForSelector("#zRows dd");
+    await p.waitForTimeout(700);
+    ok(/encrypted/.test(await p.textContent("#zRows")), "zcash: shielded fields are hidden");
+    await p.click('#zFrom button[data-v="t"]'); await p.click('#zTo button[data-v="t"]');
+    await p.waitForTimeout(300);
+    ok(!/encrypted/.test(await p.textContent("#zRows")) && /Fully transparent/.test(await p.textContent("#zKind")), "zcash: transparent tx shows everything");
+    await p.click('[data-ex="zs1"]');
+    ok(/Sapling/.test(await p.textContent("#zAddrOut")) && /Looks valid/.test(await p.textContent("#zAddrOut")), "zcash: address inspector recognises zs1");
+    await p.fill("#zAddr", "hello");
+    ok(/Not a Zcash address/.test(await p.textContent("#zAddrOut")), "zcash: rejects non-addresses");
+    await p.click('.zq[data-q="0"] [data-a="1"]');
+    ok(/Correct/.test(await p.textContent('.zq[data-q="0"]')), "zcash: quiz explains answers");
+    await p.locator("#zDate").fill("0"); await p.dispatchEvent("#zDate", "input");
+    ok(/2016/.test(await p.textContent("#zDateV")), "zcash: supply slider scrubs through time");
+    ok(/M/.test(await p.textContent("#zStats")), "zcash: issuance stats computed");
+    await p.screenshot({ path: `${OUT}/zcash.png`, fullPage: true });
+    // tour
+    await p.goto(BASE + "#/");
+    await p.waitForSelector("#heat a");
+    await p.evaluate(() => window.LN_TOUR());
+    await p.waitForSelector(".tour-card h3");
+    const t1 = await p.textContent(".tour-card h3");
+    await p.click('.tour-card [data-t="next"]');
+    await p.waitForFunction((a) => document.querySelector(".tour-card h3")?.textContent !== a, t1);
+    ok(true, "tour: steps advance");
+    await p.click('.tour-card [data-t="skip"]');
+    ok((await p.locator(".tour-card").count()) === 0, "tour: can be skipped");
     for (const r of ["#/markets", "#/learn", "#/risk", "#/nope", "#/trade/NIO"]) { await p.goto(BASE + r); await p.waitForTimeout(500); ok((await p.locator("main h1, main .h2").count()) > 0, `demo: ${r} renders`); }
     ok(errors.length === 0, `demo: no JS errors ${errors.length ? JSON.stringify(errors) : ""}`);
   }
@@ -181,6 +212,10 @@ const overflow = async (p, label) => ok((await p.evaluate(() => document.documen
     await p.goto(BASE + "#/tools");
     await p.waitForSelector("#pOut dd");
     await overflow(p, "phone tools");
+    await p.goto(BASE + "#/zcash");
+    await p.waitForSelector("#zRows dd");
+    await overflow(p, "phone zcash");
+    await p.screenshot({ path: `${OUT}/zcash-phone.png`, fullPage: true });
     await p.screenshot({ path: `${OUT}/tools-phone.png`, fullPage: true });
     ok(errors.length === 0, `phone: no JS errors ${errors.length ? JSON.stringify(errors) : ""}`);
   }

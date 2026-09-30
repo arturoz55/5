@@ -26,6 +26,7 @@
         <a href="#/portfolio" data-nav="portfolio">Portfolio</a>
         <a href="#/vault" data-nav="vault">Vault</a>
         <a href="#/tools" data-nav="tools">Tools</a>
+        <a href="#/zcash" data-nav="zcash" class="nav__zec">Zcash</a>
         <a href="#/learn" data-nav="learn">Learn</a>
       </nav>
       <div class="nav__right">
@@ -36,8 +37,9 @@
         <button class="burger" id="burger" aria-label="Menu" aria-expanded="false"><span></span><span></span></button>
       </div>
     </div>
+    <div class="ticker" id="ticker" aria-label="Live prices"><div class="ticker__track" id="tickerTrack"></div></div>
     <div class="mmenu" id="mmenu">
-      <a href="#/markets">Markets</a><a href="#/portfolio">Portfolio</a><a href="#/vault">Vault</a><a href="#/tools">Tools</a><a href="#/learn">Learn</a>
+      <a href="#/markets">Markets</a><a href="#/portfolio">Portfolio</a><a href="#/vault">Vault</a><a href="#/tools">Tools</a><a href="#/zcash">Zcash</a><a href="#/learn">Learn</a>
       <select class="net" id="netMobile" aria-label="Network"></select>
     </div>
   </header>
@@ -51,7 +53,7 @@
         <p class="faint small">Leveraged trading is risky. Positions can be liquidated and lose all margin. Lantern is not affiliated with any company listed here.</p>
       </div>
       <nav class="footer__nav" aria-label="Footer">
-        <a href="#/tools">Tools</a><a href="#/learn">How it works</a><a href="#/risk">Risk disclosure</a><a href="#/vault">Provide liquidity</a>
+        <a href="#/tools">Tools</a><a href="#/zcash">Zcash corner</a><a href="#/learn">How it works</a><button class="linkbtn" id="tourBtn" style="font-size:14px">Take the tour</button><a href="#/risk">Risk disclosure</a><a href="#/vault">Provide liquidity</a>
       </nav>
     </div>
     <div class="wrap faint small footer__base">© <span id="year"></span> Lantern · MIT licensed · Background photo: “Overcast Mountains” by Aleks Dahlberg, CC0 (via Unsplash / Wikimedia Commons)</div>
@@ -66,6 +68,7 @@
   <script src="js/backend.js"></script>
   <script src="js/sky.js"></script>
   <script src="js/tools.js"></script>
+  <script src="js/zcash.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

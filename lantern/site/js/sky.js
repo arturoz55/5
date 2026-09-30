@@ -87,7 +87,7 @@
 
     function applyMood() {
       // darker, bluer valley in a falling market; a touch brighter and warmer in a rising one
-      const b = 0.62 + mood * 0.16, s = 0.9 + mood * 0.15;
+      const b = 0.86 + mood * 0.14, s = 0.95 + mood * 0.12;
       photo.style.setProperty("--photo-filter", `brightness(${b.toFixed(3)}) saturate(${s.toFixed(3)}) contrast(1.05)`);
     }
 
