@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tensorforge — Launch tokens paired with TAO</title>
+  <meta name="description" content="Launch a fixed-supply token with a permanently locked TAO or subnet-alpha pool on Bittensor EVM. Discover launches and trade them in one place." />
+  <meta name="theme-color" content="#0b0a09" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230b0a09'/><path d='M9 10h14M16 10v13' stroke='%23ff6a2b' stroke-width='3' stroke-linecap='round'/><circle cx='23' cy='22' r='2.5' fill='%23efe8dc'/></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,300..600,0..100,0..1;1,9..144,300..600,0..100,0..1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="nav" id="nav">
+    <div id="banner"></div>
+    <div class="wrap nav__inner">
+      <a href="#/" class="logo" aria-label="Tensorforge home">
+        <svg class="logo__mark" viewBox="0 0 32 32" aria-hidden="true">
+          <rect x="1" y="1" width="30" height="30" rx="9" fill="none" stroke="rgba(239,232,220,.25)" />
+          <path d="M9 10h14M16 10v13" stroke="#ff6a2b" stroke-width="3" stroke-linecap="round" />
+          <path class="spark" d="M23 19.5v5M20.5 22h5" stroke="#efe8dc" stroke-width="1.6" stroke-linecap="round" />
+        </svg>
+        <span>Tensorforge</span>
+      </a>
+      <nav class="nav__links" aria-label="Primary">
+        <a href="#/markets" data-nav="markets">Discover</a>
+        <a href="#/subnets" data-nav="subnets">Subnets</a>
+        <a href="#/create" data-nav="create">Create</a>
+        <a href="#/docs" data-nav="docs">Learn</a>
+      </nav>
+      <div class="nav__right">
+        <select class="net-select" id="netSelect" aria-label="Network"></select>
+        <button class="btn btn--sm" id="walletBtn"><span class="net-dot" id="walletDot"></span><span id="walletLabel">Connect<span class="wallet-label-long"> wallet</span></span></button>
+        <button class="burger" id="burger" aria-label="Menu" aria-expanded="false"><span></span><span></span></button>
+      </div>
+    </div>
+    <div class="mobile-menu" id="mobileMenu">
+      <a href="#/markets">Discover</a>
+      <a href="#/subnets">Subnets</a>
+      <a href="#/create">Create</a>
+      <a href="#/docs">Learn</a>
+      <select class="net-select" id="netSelectMobile" aria-label="Network"></select>
+    </div>
+  </header>
+
+  <main id="main" tabindex="-1"></main>
+
+  <footer class="footer">
+    <div class="wrap">
+      <p class="footer__big" aria-hidden="true">Tensorforge</p>
+      <div class="footer__row">
+        <span>© <span id="year"></span> Tensorforge · Strike it in TAO.</span>
+        <nav aria-label="Footer">
+          <a href="#/docs">Docs</a>
+          <a href="#/risk">Risk disclosure</a>
+          <a href="#/fund">Fund a wallet</a>
+          <a href="https://github.com/" target="_blank" rel="noopener">Source</a>
+        </nav>
+      </div>
+    </div>
+  </footer>
+
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+
+  <script src="vendor/ethers.umd.min.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/deployments.js"></script>
+  <script src="js/abi.js"></script>
+  <script src="js/demo.js"></script>
+  <script src="js/backend.js"></script>
+  <script src="js/fx.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

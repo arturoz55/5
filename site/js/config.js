@@ -1,0 +1,71 @@
+// Tensorforge — static configuration
+window.TF_CONFIG = {
+  brand: "Tensorforge",
+  tagline: "Strike it in TAO.",
+  x: "https://x.com/",
+  networks: [
+    {
+      key: "bittensor",
+      chainId: 964,
+      name: "Bittensor EVM",
+      rpc: "https://lite.chain.opentensor.ai",
+      explorer: "https://evm.taostats.io",
+      native: { name: "TAO", symbol: "TAO", decimals: 18 },
+    },
+    {
+      key: "bittensor-testnet",
+      chainId: 945,
+      name: "Bittensor Testnet",
+      rpc: "https://test.chain.opentensor.ai",
+      explorer: "https://evm-testscan.dev.opentensor.ai",
+      native: { name: "TAO", symbol: "TAO", decimals: 18 },
+    },
+    {
+      key: "local",
+      chainId: 31337,
+      name: "Local node",
+      rpc: "http://127.0.0.1:8545",
+      explorer: "",
+      native: { name: "TAO", symbol: "TAO", decimals: 18 },
+    },
+    {
+      key: "demo",
+      chainId: 0,
+      name: "Demo network",
+      demo: true,
+      native: { name: "TAO", symbol: "TAO", decimals: 18 },
+    },
+  ],
+  sectors: [
+    { key: "agents", label: "Agents", blurb: "Autonomous systems that plan, call tools and act." },
+    { key: "inference", label: "Inference", blurb: "Serving open models fast and cheap." },
+    { key: "compute", label: "Compute", blurb: "GPU markets and decentralized hardware." },
+    { key: "data", label: "Data", blurb: "Scraping, curation and verifiable datasets." },
+    { key: "training", label: "Training", blurb: "Distributed pre-training and fine-tuning." },
+    { key: "trading", label: "Trading", blurb: "Signals, strategies and market prediction." },
+    { key: "research", label: "Research", blurb: "Science, biology and open problems." },
+    { key: "other", label: "Other", blurb: "Everything that doesn't fit a box yet." },
+  ],
+  // A hand-picked directory snapshot. Subnets change owners and names often —
+  // every entry links to the live explorer, which is the source of truth.
+  subnets: [
+    { netuid: 1, name: "Apex", sector: "agents", note: "Open agentic competitions" },
+    { netuid: 3, name: "Templar", sector: "training", note: "Permissionless distributed pre-training" },
+    { netuid: 4, name: "Targon", sector: "inference", note: "Confidential compute and inference" },
+    { netuid: 9, name: "IOTA", sector: "training", note: "Incentivised orchestrated training" },
+    { netuid: 13, name: "Data Universe", sector: "data", note: "Decentralized social-data scraping" },
+    { netuid: 18, name: "Zeus", sector: "research", note: "Environmental forecasting" },
+    { netuid: 22, name: "Desearch", sector: "agents", note: "AI search over the open web" },
+    { netuid: 34, name: "BitMind", sector: "research", note: "Deepfake and synthetic-media detection" },
+    { netuid: 44, name: "Score", sector: "data", note: "Computer vision for sports video" },
+    { netuid: 51, name: "lium", sector: "compute", note: "Rentable GPU compute" },
+    { netuid: 56, name: "Gradients", sector: "training", note: "No-code model fine-tuning" },
+    { netuid: 64, name: "Chutes", sector: "inference", note: "Serverless model hosting" },
+  ],
+  subnetExplorer: (netuid) => `https://taostats.io/subnets/${netuid}`,
+  priceFeed: "https://api.coingecko.com/api/v3/simple/price?ids=bittensor&vs_currencies=usd&include_24hr_change=true",
+  fundLinks: [
+    { name: "Bridge or buy TAO", url: "https://docs.learnbittensor.org/evm-tutorials", note: "Official guide to getting TAO onto Bittensor EVM." },
+    { name: "Bittensor wallet docs", url: "https://docs.learnbittensor.org/", note: "Create a wallet and move TAO between Substrate and EVM." },
+  ],
+};
