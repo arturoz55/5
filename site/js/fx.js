@@ -287,5 +287,20 @@
     return `background: radial-gradient(circle at 30% 25%, hsl(${a} 90% 62%), transparent 60%), linear-gradient(135deg, hsl(${b} 70% 35%), hsl(${(a + 200) % 360} 50% 14%));`;
   }
 
-  window.TF_FX = { heroLattice, sparkline, priceChart, reveals, pointerFx, countUp, avatarStyle, fitCanvas, reduce };
+  // scale a one-line wordmark so it spans its container exactly, whatever font actually loaded
+  function fitText(el) {
+    if (!el) return;
+    const fit = () => {
+      if (!el.isConnected) { window.removeEventListener("resize", fit); return; }
+      const box = el.parentElement.clientWidth;
+      el.style.fontSize = "100px";
+      const w = el.scrollWidth;
+      if (w) el.style.fontSize = Math.min(320, (100 * box) / w) + "px";
+    };
+    fit();
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
+    window.addEventListener("resize", fit, { passive: true });
+  }
+
+  window.TF_FX = { fitText, heroLattice, sparkline, priceChart, reveals, pointerFx, countUp, avatarStyle, fitCanvas, reduce };
 })();

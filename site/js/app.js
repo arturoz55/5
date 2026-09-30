@@ -133,7 +133,7 @@
   function renderBanner() {
     const b = $("#banner");
     if (state.net.demo) {
-      b.innerHTML = `<div class="banner">You're on the <b>demo network</b>: every trade is simulated in your browser, no real funds move. <button id="resetDemo">Reset demo</button></div>`;
+      b.innerHTML = `<div class="banner"><span>Demo network<span class="banner__long">: every trade is simulated in your browser, no real funds move</span>.</span> <button id="resetDemo">Reset demo</button></div>`;
       $("#resetDemo").onclick = () => { state.be.reset(); toast("ok", "Demo reset", "Fresh markets and a refilled demo wallet."); setNet(state.net); };
     } else if (!state.be.ready) {
       b.innerHTML = `<div class="banner">Tensorforge isn't deployed on ${esc(state.net.name)} yet. <button id="toDemo">Try the demo network</button></div>`;
@@ -325,6 +325,22 @@
     </section>
     <div class="ticker" id="ticker" aria-label="Recent launches"></div>
 
+    <section class="studio-band" aria-labelledby="studioMark"><div class="wrap studio-band__inner">
+      <div class="studio-band__top">
+        <div class="studio-band__label reveal"><span class="dotmark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span><span>Single token<br>launch<br>studio</span></div>
+        <div class="studio-band__meta reveal" style="--d:.1s"><span>Fixed supply</span><span>Locked pool</span><span>0% to creator</span></div>
+      </div>
+      <div class="coin-stage reveal" style="--d:.15s" aria-hidden="true">
+        <div class="coin"><div class="coin__face coin__face--front"><span>τ</span></div><div class="coin__edge"></div><div class="coin__face coin__face--back"><span>α</span></div></div>
+        <div class="coin-shadow"></div>
+      </div>
+      <div class="studio-band__mark-wrap"><h2 class="studio-band__mark reveal" id="studioMark" style="--d:.2s">tensorforge<sup>τ</sup></h2></div>
+      <div class="studio-band__foot reveal" style="--d:.25s">
+        <span>Forged on Bittensor EVM · chain 964</span>
+        <a class="btn btn--ink" href="#/create">Start your launch <span class="arrow">→</span></a>
+      </div>
+    </div></section>
+
     <section class="section--tight"><div class="wrap">
       <div class="stats" id="stats">
         ${["Launches", "Locked liquidity", "Trades indexed", "Execution"].map((k, i) => `<div class="stat reveal" style="--d:${i * 0.08}s"><span class="eyebrow">${k}</span><div class="stat__v" data-stat="${i}">—</div><div class="stat__s" data-stat-s="${i}"></div></div>`).join("")}
@@ -412,6 +428,7 @@
     </div></section>`;
 
     FX.heroLattice($("#heroCanvas"));
+    FX.fitText($("#studioMark"));
     FX.reveals(main);
     bindLookup();
 
