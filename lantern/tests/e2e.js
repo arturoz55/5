@@ -42,7 +42,10 @@ const overflow = async (p, label) => ok((await p.evaluate(() => document.documen
     await p.goto(BASE + "#/");
     await p.waitForSelector("[data-row]");
     ok((await p.locator("[data-row]").count()) === 8, "demo: board lists 8 markets");
-    ok(/\d\d:\d\d:\d\d/.test(await p.textContent("#nyTime")), "demo: New York clock ticks");
+    ok((await p.locator("#heat a").count()) === 8, "demo: heatmap has 8 tiles");
+    ok(/open|closed/.test(await p.textContent("#tlPills")), "demo: exchange timeline shows status");
+    await p.click('[data-star="JD"]');
+    ok(await p.evaluate(() => JSON.parse(localStorage.getItem("ln-watch") || "[]").includes("JD")), "demo: star adds to watchlist");
     await p.waitForTimeout(1500);
     await p.screenshot({ path: `${OUT}/home.png` });
     await p.screenshot({ path: `${OUT}/home-full.png`, fullPage: true });
@@ -95,6 +98,42 @@ const overflow = async (p, label) => ok((await p.evaluate(() => document.documen
     await p.waitForFunction(() => /You hold 0\b/.test(document.querySelector("#wdBal").textContent), null, { timeout: 10000 });
     ok(true, "demo: vault deposit and full withdrawal");
     await p.screenshot({ path: `${OUT}/vault.png` });
+    await p.goto(BASE + "#/tools"); await p.waitForSelector("#pOut dd"); await p.waitForTimeout(600);
+    await p.screenshot({ path: `${OUT}/tools.png`, fullPage: true });
+    // tools
+    await p.goto(BASE + "#/tools");
+    await p.waitForSelector("#pOut dd");
+    ok(/\$/.test(await p.textContent("#pOut")), "tools: PnL calculator computes");
+    await p.fill("#pMargin", "0");
+    ok(/Enter margin/.test(await p.textContent("#pOut")), "tools: PnL calculator validates input");
+    await p.fill("#pMargin", "1000");
+    const box = await p.locator("#pChart").boundingBox();
+    await p.mouse.click(box.x + box.width * 0.9, box.y + box.height / 2);
+    ok(Number(await p.inputValue("#pExit")) > 0, "tools: dragging chart sets exit price");
+    ok(/liquidated before stop|stop hits first/.test(await p.textContent("#sLev")), "tools: risk sizer compares leverage");
+    await p.fill("#fxUsd", "10");
+    ok(Number(await p.inputValue("#fxCny")) > 10, "tools: currency converter updates");
+    await p.click('#cmpPick [data-c="5"]');
+    ok((await p.locator("#cmpLegend span").count()) >= 3, "tools: compare chart legend");
+    const cur = Number((await p.textContent('#toolsHost')) && await p.evaluate(() => Number(window.LN_APP.state.markets[0].price) / 1e8));
+    await p.selectOption("#aDir", "below");
+    await p.fill("#aPrice", String((cur * 2).toFixed(2)));
+    await p.click("#aAdd");
+    await toast(p, /BABA is below/, 10000);
+    ok(true, "tools: price alert fires on next tick");
+    await p.keyboard.press("Control+k");
+    await p.waitForSelector("#cmdkInput");
+    await p.fill("#cmdkInput", "nio");
+    await p.keyboard.press("Enter");
+    await p.waitForFunction(() => location.hash === "#/trade/NIO");
+    ok(true, "palette: Ctrl+K jumps to a market");
+    await p.click("#theme");
+    ok(["dark", "light"].includes(await p.evaluate(() => document.documentElement.dataset.theme)), "theme toggle sets a theme");
+    await p.screenshot({ path: `${OUT}/trade-toggled-theme.png` });
+    await p.click("#theme");
+    await p.goto(BASE + "#/markets?show=watch");
+    await p.waitForSelector("[data-row]");
+    ok((await p.locator("[data-row]").count()) === 1, "markets: watchlist filter shows starred only");
     for (const r of ["#/markets", "#/learn", "#/risk", "#/nope", "#/trade/NIO"]) { await p.goto(BASE + r); await p.waitForTimeout(500); ok((await p.locator("main h1, main .h2").count()) > 0, `demo: ${r} renders`); }
     ok(errors.length === 0, `demo: no JS errors ${errors.length ? JSON.stringify(errors) : ""}`);
   }
@@ -116,6 +155,10 @@ const overflow = async (p, label) => ok((await p.evaluate(() => document.documen
     await p.goto(BASE + "#/vault");
     await p.waitForSelector("#dep");
     await overflow(p, "phone vault");
+    await p.goto(BASE + "#/tools");
+    await p.waitForSelector("#pOut dd");
+    await overflow(p, "phone tools");
+    await p.screenshot({ path: `${OUT}/tools-phone.png`, fullPage: true });
     ok(errors.length === 0, `phone: no JS errors ${errors.length ? JSON.stringify(errors) : ""}`);
   }
 

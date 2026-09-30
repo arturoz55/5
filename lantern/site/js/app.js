@@ -8,6 +8,9 @@
   const main = $("#main");
   const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const BPS = 10000n;
+  const cssv = (n) => window.LN_TOOLS.css(n);
+  // add alpha to any CSS colour for canvas gradients
+  const alpha = (col, a) => { const c = document.createElement("canvas").getContext("2d"); c.fillStyle = col; const v = c.fillStyle; if (v.startsWith("#")) { const n = parseInt(v.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; } return v.replace(/rgba?\(([^)]+)\)/, (m, g) => `rgba(${g.split(",").slice(0, 3).join(",")},${a})`); };
 
   // ───────────────────────── utils ─────────────────────────
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -119,6 +122,7 @@
       const prev = state.markets.map((m) => m.price);
       await loadMarkets();
       if (state.be.demo) state.hist.clear(); // simulated feed moves every tick
+      window.LN_TOOLS.alerts.check(state.markets).forEach((a) => toast("alert", `${a.symbol} is ${a.dir} ${money(a.price)}`, `Now ${pxFmt(a.now)}`, 9000));
       if (viewTick) viewTick(prev);
       wallet();
     });
@@ -138,12 +142,12 @@
     ctx.clearRect(0, 0, w, h);
     if (!vals || vals.length < 2) return;
     const mn = Math.min(...vals), mx = Math.max(...vals), sp = mx - mn || 1;
-    const col = up ? "#3ecf9a" : "#ff5a4e";
+    const col = cssv(up ? "--long" : "--short");
     ctx.beginPath();
     vals.forEach((v, i) => { const x = (i / (vals.length - 1)) * w, y = h - 2 - ((v - mn) / sp) * (h - 4); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
     ctx.strokeStyle = col; ctx.lineWidth = 1.5; ctx.stroke();
     ctx.lineTo(w, h); ctx.lineTo(0, h); ctx.closePath();
-    const g = ctx.createLinearGradient(0, 0, 0, h); g.addColorStop(0, col + "33"); g.addColorStop(1, col + "00"); ctx.fillStyle = g; ctx.fill();
+    const g = ctx.createLinearGradient(0, 0, 0, h); g.addColorStop(0, alpha(col, .2)); g.addColorStop(1, alpha(col, 0)); ctx.fillStyle = g; ctx.fill();
   }
 
   function sky(canvas) {
@@ -197,21 +201,21 @@
     const draw = () => {
       const { ctx, w, h } = fit(c);
       ctx.clearRect(0, 0, w, h);
-      if (pts.length < 2) { ctx.fillStyle = "#7d7b88"; ctx.font = "13px 'IBM Plex Sans', sans-serif"; ctx.textAlign = "center"; ctx.fillText("Waiting for price history…", w / 2, h / 2); return; }
+      if (pts.length < 2) { ctx.fillStyle = cssv("--ink-3"); ctx.font = "13px Manrope, sans-serif"; ctx.textAlign = "center"; ctx.fillText("Waiting for price history…", w / 2, h / 2); return; }
       const L = 8, R = 70, T = 14, Bm = 26;
       const vs = pts.map((p) => p.p).concat(entries.map((e) => e.v));
       let mn = Math.min(...vs), mx = Math.max(...vs); const pad = (mx - mn) * 0.1 || mx * 0.01; mn -= pad; mx += pad;
       const t0 = pts[0].t, t1 = pts[pts.length - 1].t, ts = t1 - t0 || 1;
       const X = (t) => L + ((t - t0) / ts) * (w - L - R), Y = (v) => T + (1 - (v - mn) / (mx - mn)) * (h - T - Bm);
-      ctx.font = "11px 'IBM Plex Mono', monospace"; ctx.fillStyle = "#7d7b88"; ctx.strokeStyle = "rgba(241,233,216,.06)";
+      ctx.font = "11px 'DM Mono', monospace"; ctx.fillStyle = cssv("--ink-3"); ctx.strokeStyle = cssv("--line");
       for (let i = 0; i <= 4; i++) { const v = mn + ((mx - mn) * i) / 4, y = Y(v); ctx.beginPath(); ctx.moveTo(L, y); ctx.lineTo(w - R + 4, y); ctx.stroke(); ctx.textAlign = "left"; ctx.fillText(fmt.axis(v), w - R + 8, y + 4); }
       ctx.textAlign = "center";
       for (let i = 0; i <= 3; i++) { const t = t0 + (ts * i) / 3; ctx.fillText(fmt.time(t), Math.min(Math.max(X(t), 28), w - R - 28), h - 7); }
-      const up = pts[pts.length - 1].p >= pts[0].p, col = up ? "#3ecf9a" : "#ff5a4e";
+      const up = pts[pts.length - 1].p >= pts[0].p, col = cssv(up ? "--long" : "--short");
       ctx.beginPath(); pts.forEach((p, i) => (i ? ctx.lineTo(X(p.t), Y(p.p)) : ctx.moveTo(X(p.t), Y(p.p))));
       ctx.strokeStyle = col; ctx.lineWidth = 1.7; ctx.stroke();
       ctx.lineTo(X(t1), h - Bm); ctx.lineTo(X(t0), h - Bm); ctx.closePath();
-      const g = ctx.createLinearGradient(0, T, 0, h - Bm); g.addColorStop(0, col + "30"); g.addColorStop(1, col + "00"); ctx.fillStyle = g; ctx.fill();
+      const g = ctx.createLinearGradient(0, T, 0, h - Bm); g.addColorStop(0, alpha(col, .19)); g.addColorStop(1, alpha(col, 0)); ctx.fillStyle = g; ctx.fill();
       // position entry and liquidation lines
       for (const e of entries) {
         const y = Y(e.v); ctx.setLineDash([4, 4]); ctx.strokeStyle = e.color; ctx.beginPath(); ctx.moveTo(L, y); ctx.lineTo(w - R + 4, y); ctx.stroke(); ctx.setLineDash([]);
@@ -219,11 +223,11 @@
       }
       const last = pts[pts.length - 1], ly = Y(last.p);
       ctx.fillStyle = col; ctx.beginPath(); ctx.arc(X(last.t), ly, 3.5, 0, 7); ctx.fill();
-      if (!reduce) { ctx.strokeStyle = col + "66"; ctx.beginPath(); ctx.arc(X(last.t), ly, 3.5 + ((performance.now() / 60) % 10), 0, 7); ctx.stroke(); }
+      if (!reduce) { ctx.strokeStyle = alpha(col, .4); ctx.beginPath(); ctx.arc(X(last.t), ly, 3.5 + ((performance.now() / 60) % 10), 0, 7); ctx.stroke(); }
       if (hover >= 0) {
         const p = pts[hover], x = X(p.t), y = Y(p.p);
-        ctx.strokeStyle = "rgba(241,233,216,.25)"; ctx.beginPath(); ctx.moveTo(x, T); ctx.lineTo(x, h - Bm); ctx.stroke();
-        ctx.fillStyle = "#f1e9d8"; ctx.beginPath(); ctx.arc(x, y, 3.5, 0, 7); ctx.fill();
+        ctx.strokeStyle = cssv("--line-2"); ctx.beginPath(); ctx.moveTo(x, T); ctx.lineTo(x, h - Bm); ctx.stroke();
+        ctx.fillStyle = cssv("--ink"); ctx.beginPath(); ctx.arc(x, y, 3.5, 0, 7); ctx.fill();
         tip.textContent = `${fmt.value(p.p)} · ${fmt.full(p.t)}`; tip.style.opacity = 1;
         tip.style.left = Math.min(Math.max(x - tip.offsetWidth / 2, 0), w - tip.offsetWidth) + "px"; tip.style.top = Math.max(y - 40, 0) + "px";
       } else tip.style.opacity = 0;
@@ -265,9 +269,12 @@
   // ───────────────────────── views ─────────────────────────
   const views = {};
 
+  const starSvg = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg>';
   function boardRow(m) {
     const ch = change24(m.id);
+    const on = window.LN_TOOLS.watch.has(m.symbol);
     return `<a class="board__row" href="#/trade/${esc(m.symbol)}" data-row="${m.id}">
+      <button class="star ${on ? "on" : ""}" data-star="${esc(m.symbol)}" aria-pressed="${on}" aria-label="${on ? "Remove from" : "Add to"} watchlist">${starSvg}</button>
       <div class="tick">${badge(m)}<div style="min-width:0"><div class="tick__sym">${esc(m.symbol)}</div><div class="tick__name">${esc(m.name)}</div></div></div>
       <div class="mono price-cell" data-px="${m.id}">${pxFmt(toPx(m.price))}</div>
       <div class="mono ${ch >= 0 ? "long" : "short"}" data-ch="${m.id}">${pct(ch)}</div>
@@ -275,8 +282,10 @@
       <div class="row" style="gap:6px;flex-wrap:nowrap"><span class="btn btn--xs btn--jade" data-go="long">Long</span><span class="btn btn--xs btn--cinnabar" data-go="short">Short</span></div>
     </a>`;
   }
-  function board(host) {
-    host.innerHTML = `<div class="board__row board__row--head"><span class="label">Market</span><span class="label">Price</span><span class="label">24h</span><span class="label">24h chart</span><span class="label" style="text-align:right">Trade</span></div>` + state.markets.map(boardRow).join("");
+  function board(host, filter = () => true) {
+    const rows = state.markets.filter(filter);
+    host.innerHTML = `<div class="board__row board__row--head"><span></span><span class="label">Market</span><span class="label">Price</span><span class="label">24h</span><span class="label">24h chart</span><span class="label" style="text-align:right">Trade</span></div>` + (rows.length ? rows.map(boardRow).join("") : `<div class="empty"><p>No markets match. Star a market to add it to your watchlist.</p></div>`);
+    $$("[data-star]", host).forEach((b) => b.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); const on = window.LN_TOOLS.watch.toggle(b.dataset.star); b.classList.toggle("on", on); b.setAttribute("aria-pressed", String(on)); b.setAttribute("aria-label", `${on ? "Remove from" : "Add to"} watchlist`); toast("ok", on ? "Added to watchlist" : "Removed from watchlist", b.dataset.star, 2000); }));
     $$("[data-go]", host).forEach((b) => b.addEventListener("click", (e) => { e.preventDefault(); const row = b.closest("[data-row]"); location.hash = `#/trade/${state.markets[row.dataset.row].symbol}?side=${b.dataset.go}`; }));
     drawSparks(host);
   }
@@ -300,38 +309,35 @@
 
   views.home = async () => {
     main.innerHTML = `
-    <section class="hero">
-      <canvas class="hero__sky" id="sky" aria-hidden="true"></canvas>
-      <div class="wrap hero__in">
-        <div class="hero__copy">
-          <span class="kicker reveal">Eight markets · up to 10×</span>
-          <h1 class="display reveal" style="--d:.08s;margin-top:22px">The night desk<br>for China's <span class="glow">giants.</span></h1>
-          <p class="lead reveal" style="--d:.16s">Go long or short on eight US-listed Chinese companies with up to 10× leverage. Post margin in USDG, settle on chain, and keep trading after Shanghai has gone to bed.</p>
-          <div class="row reveal" style="--d:.24s"><a class="btn btn--amber" href="#/trade/BABA">Start trading →</a><a class="btn btn--ghost" href="#/learn">How it works</a></div>
-        </div>
-        <aside class="clocks reveal" id="clocks" style="--d:.3s" aria-label="Exchange clocks">
-          ${[["ny", "New York", "NYSE · Nasdaq"], ["sh", "Shanghai", "SSE · home market"]].map(([k, city, ex]) => `
-          <div class="clock">
-            <svg class="dial" viewBox="0 0 56 56" aria-hidden="true"><circle cx="28" cy="28" r="26"/><line class="h" id="${k}H" x1="28" y1="28" x2="28" y2="15"/><line class="m" id="${k}M" x1="28" y1="28" x2="28" y2="8"/><circle class="c" cx="28" cy="28" r="2.5"/></svg>
-            <div><div class="clock__city">${city}</div><div class="clock__time" id="${k}Time">—</div><div class="faint small">${ex}</div></div>
-            <span class="pill" id="${k}Pill">—</span>
-          </div>`).join("")}
-          <p class="clocks__note" id="clockNote"></p>
-        </aside>
+    <section class="hero"><div class="wrap hero__in">
+      <div class="hero__copy">
+        <span class="kicker reveal">Eight markets · 1× to 10×</span>
+        <h1 class="display reveal" style="--d:.06s;margin-top:22px">China's giants, <span class="glow">around the clock.</span></h1>
+        <p class="lead reveal" style="--d:.12s">Go long or short on eight US-listed Chinese companies. Post margin in USDG, pick your leverage, and settle on chain.</p>
+        <div class="row reveal" style="--d:.18s"><a class="btn btn--amber" href="#/trade/BABA">Start trading →</a><a class="btn btn--ghost" href="#/tools">Open the tools</a></div>
+        <div class="hero__stats reveal" style="--d:.24s"><div><span class="label">Markets</span><b>8</b></div><div><span class="label">Max leverage</span><b>10×</b></div><div><span class="label">Fee per side</span><b>0.10%</b></div><div><span class="label">Vault</span><b id="heroVault">—</b></div></div>
       </div>
-    </section>
+      <div class="reveal" style="--d:.2s">
+        <div class="plate-wrap" id="plateWrap"><canvas id="plate" aria-label="Spinning plate: each ring is one market's recent price path. Drag to spin, click a ring to trade it."></canvas><div class="plate-tip" id="plateTip">Drag to spin · click a ring</div></div>
+      </div>
+    </div></section>
 
-    <section class="section" style="padding-top:24px"><div class="wrap">
+    <section class="section" style="padding-top:16px"><div class="wrap">
       <div class="head"><div><span class="kicker">Markets</span><h2 class="h2">Eight names. Two directions.</h2></div><span class="faint small mono" id="feedNote"></span></div>
       <div class="board" id="board"><div class="empty">Loading markets…</div></div>
+    </div></section>
+
+    <section class="section" style="padding-top:0"><div class="wrap two">
+      <div class="panel"><span class="label">Heatmap · 24h change</span><h3 class="h3" style="margin:8px 0 16px">Who's moving</h3><div class="heat" id="heat"></div><p class="faint small" style="margin:12px 0 0">Bigger tiles carry more open interest. Click a tile to trade it.</p></div>
+      <div class="panel"><span class="label">Exchange clock</span><h3 class="h3" style="margin:8px 0 16px">Who's open right now</h3><div id="tlHome"></div></div>
     </div></section>
 
     <section class="section" style="padding-top:0"><div class="wrap">
       <div class="head"><div><span class="kicker">How a trade works</span><h2 class="h2">Margin in, position out.</h2></div></div>
       <div class="steps">
-        <article class="step"><svg class="ico" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="11" width="28" height="20" rx="4"/><path d="M6 17h28M12 25h6"/></svg><h3 class="h3">Post margin</h3><p>Deposit USDG as margin. A 0.1% fee on the position size is taken when you open and again when you close.</p></article>
-        <article class="step"><svg class="ico" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 30l9-9 6 6 13-15"/><path d="M26 12h8v8"/></svg><h3 class="h3">Pick a side</h3><p>Long if you expect the price to rise, short if you expect it to fall. Choose 1× to 10× leverage.</p></article>
-        <article class="step"><svg class="ico" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2"><circle cx="20" cy="20" r="13"/><path d="M20 12v8l5 4"/></svg><h3 class="h3">Close, or be closed</h3><p>Close whenever the feed is live. If your equity falls below 5% of the position, anyone can liquidate it.</p></article>
+        <article class="step"><svg class="ico" viewBox="0 0 44 44" fill="none" stroke="currentColor" stroke-width="2"><circle cx="22" cy="22" r="18"/><path d="M15 22h14M22 15v14"/></svg><h3 class="h3">Post margin</h3><p>Deposit USDG. A 0.1% fee on the position size is taken when you open and again when you close.</p></article>
+        <article class="step"><svg class="ico" viewBox="0 0 44 44" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 32l10-10 7 7 15-17"/><path d="M29 12h9v9"/></svg><h3 class="h3">Pick a side</h3><p>Long if you expect the price to rise, short if you expect it to fall, with 1× to 10× leverage.</p></article>
+        <article class="step"><svg class="ico" viewBox="0 0 44 44" fill="none" stroke="currentColor" stroke-width="2"><circle cx="22" cy="22" r="18"/><path d="M22 12v10l6 5"/></svg><h3 class="h3">Close, or be closed</h3><p>Close whenever the feed is live. Below 5% equity, anyone can liquidate the position.</p></article>
       </div>
     </div></section>
 
@@ -341,35 +347,69 @@
       <p class="note" style="margin-top:24px">Lantern is not affiliated with, endorsed by or a broker for any company listed here. You never own the shares. Positions only track their price.</p>
     </div></section>`;
 
-    sky($("#sky"));
-    renderClocks(); clearInterval(clockTimer); clockTimer = setInterval(() => { if (!renderClocks()) clearInterval(clockTimer); }, 1000);
     await loadMarkets();
     if (!$("#board")) return;
+    await Promise.all(state.markets.map((m) => loadHist(m.id)));
+    if (!$("#board")) return;
+    const T = window.LN_TOOLS;
+    T.plate($("#plate"), () => state.markets.map((m) => (state.hist.get(m.id) || []).map((x) => x.p)), (i) => {
+      const m = state.markets[i];
+      $("#plateTip").textContent = m ? `${m.symbol} ${pxFmt(toPx(m.price))} · ${pct(change24(i))}` : "Drag to spin · click a ring";
+    });
+    $("#plate").addEventListener("ring", (e) => { const m = state.markets[e.detail]; if (m) location.hash = `#/trade/${m.symbol}`; });
     board($("#board"));
+    T.heatmap($("#heat"), state.markets, state.markets.map((m) => change24(m.id)));
+    T.timeline($("#tlHome"));
     $("#feedNote").textContent = state.net.demo ? "Simulated feed · updates every 3 s" : `Oracle feed · ${state.net.name}`;
     const vs = async () => {
       try {
         const v = await state.be.vault();
+        if (!$("#vaultStats")) return;
         const oi = state.markets.reduce((a, m) => a + toUsd(m.longNotional) + toUsd(m.shortNotional), 0);
         const cap = Number(state.params?.maxNetExposureBps ?? 5000n) / 100;
         const vals = [[compact(toUsd(v.assets)), "USDG backing every position"], [compact(oi), "long + short, all markets"], [compact(toUsd(v.net)), "what the vault is exposed to"], [`${cap}%`, "of vault assets, max net exposure"]];
         $$("#vaultStats .stat").forEach((s, i) => { $(".stat__v", s).textContent = vals[i][0]; $(".stat__s", s).textContent = vals[i][1]; });
+        $("#heroVault").textContent = compact(toUsd(v.assets));
       } catch (e) { console.warn(e); }
     };
     vs();
-    onTick((prev) => { if ($("#board")) { updateBoard($("#board"), prev); vs(); } });
+    onTick(async (prev) => {
+      if (!$("#board")) return;
+      updateBoard($("#board"), prev);
+      await Promise.all(state.markets.map((m) => loadHist(m.id)));
+      if (!$("#heat")) return;
+      T.heatmap($("#heat"), state.markets, state.markets.map((m) => change24(m.id)));
+      vs();
+    });
   };
 
-  views.markets = async () => {
+  views.markets = async (params) => {
+    let filter = params.get("show") === "watch" ? "watch" : "all", q = "";
     main.innerHTML = `<section class="page"><div class="wrap">
       <div class="head"><div><span class="kicker">Markets</span><h1 class="h2">All markets</h1></div><span class="faint small mono" id="feedNote"></span></div>
+      <div class="filterbar"><button class="chipbtn" data-f="all">All</button><button class="chipbtn" data-f="watch">Watchlist</button><input class="search" id="mSearch" placeholder="Search ticker or name" aria-label="Search markets"><span class="faint small">Press <span class="kbd">/</span> to jump anywhere</span></div>
       <div class="board" id="board"><div class="empty">Loading markets…</div></div>
     </div></section>`;
     await loadMarkets();
     if (!$("#board")) return;
-    board($("#board"));
+    const f = (m) => (filter !== "watch" || window.LN_TOOLS.watch.has(m.symbol)) && (!q || m.symbol.toLowerCase().includes(q) || m.name.toLowerCase().includes(q));
+    const render = () => { $$("[data-f]").forEach((b) => b.classList.toggle("on", b.dataset.f === filter)); board($("#board"), f); };
+    $$("[data-f]").forEach((b) => (b.onclick = () => { filter = b.dataset.f; render(); }));
+    $("#mSearch").oninput = (e) => { q = e.target.value.trim().toLowerCase(); render(); };
+    render();
     $("#feedNote").textContent = state.net.demo ? "Simulated feed · updates every 3 s" : `Oracle feed · ${state.net.name}`;
     onTick((prev) => $("#board") && updateBoard($("#board"), prev));
+  };
+
+  views.tools = async () => {
+    main.innerHTML = `<section class="page"><div class="wrap">
+      <div class="head"><div><span class="kicker">Tools</span><h1 class="h2">Plan before you trade</h1><p class="lead" style="margin-top:12px">Calculators, an exchange clock, a comparison chart, price alerts and a currency converter. They all use the same formulas as the contracts.</p></div></div>
+      <div class="tools" id="toolsHost"><div class="empty">Loading…</div></div>
+    </div></section>`;
+    await loadMarkets();
+    if (!$("#toolsHost")) return;
+    const t = window.LN_TOOLS.tools($("#toolsHost"), { markets: () => state.markets, history: (i) => loadHist(i), toast });
+    onTick(() => t.refresh());
   };
 
   function positionsTable(list, { withActions = true } = {}) {
@@ -442,7 +482,7 @@
       $("#positions").innerHTML = positionsTable(positions);
       $("#posNote").textContent = positions.length ? `${positions.length} open` : "";
       bindPositions($("#positions"), refreshPositions);
-      ch.setEntries(positions.filter((x) => x.marketId === m.id).flatMap((x) => [{ v: toPx(x.entryPrice), color: "#b8b2a6", label: `Entry ${x.isLong ? "long" : "short"}` }, { v: toPx(x.liqPrice), color: "#ff5a4e", label: "Liquidation" }]).filter((e) => e.v > 0));
+      ch.setEntries(positions.filter((x) => x.marketId === m.id).flatMap((x) => [{ v: toPx(x.entryPrice), color: cssv("--ink-3"), label: `Entry ${x.isLong ? "long" : "short"}` }, { v: toPx(x.liqPrice), color: cssv("--short"), label: "Liquidation" }]).filter((e) => e.v > 0));
     }
     let bal = null;
     async function refreshBal() { try { bal = await state.be.balance(); } catch { bal = null; } if (!$("#bal")) return; ($("#bal").innerHTML = bal === null ? "" : `Balance ${money(toUsd(bal))} <button type="button" class="linkbtn" id="max">Max</button>`); if ($("#max")) $("#max").onclick = () => { $("#margin").value = toUsd(bal).toFixed(2); summary(); }; summary(); }
@@ -644,7 +684,7 @@
     if (!parts.length) view = "home";
     else if (parts[0] === "trade" && parts[1]) { view = "trade"; arg = parts[1]; }
     else if (parts[0] === "trade") { view = "trade"; arg = "BABA"; }
-    else if (["markets", "portfolio", "vault", "learn", "risk"].includes(parts[0])) view = parts[0];
+    else if (["markets", "portfolio", "vault", "tools", "learn", "risk"].includes(parts[0])) view = parts[0];
     else view = "notfound";
     if (viewCleanup) { viewCleanup(); viewCleanup = null; }
     viewTick = null;
@@ -652,12 +692,13 @@
     $$("[data-nav]").forEach((a) => a.classList.toggle("is-on", a.dataset.nav === view || (view === "trade" && a.dataset.nav === "markets")));
     $("#nav").classList.remove("is-open"); $("#burger").setAttribute("aria-expanded", "false");
     window.scrollTo(0, 0);
-    document.title = `Lantern — ${{ home: "the night desk for China's giants", markets: "Markets", trade: `${String(arg).toUpperCase()}`, portfolio: "Portfolio", vault: "Vault", learn: "How it works", risk: "Risk disclosure", notfound: "Not found" }[view]}`;
+    document.title = `Lantern — ${{ home: "the night desk for China's giants", markets: "Markets", trade: `${String(arg).toUpperCase()}`, portfolio: "Portfolio", vault: "Vault", tools: "Tools", learn: "How it works", risk: "Risk disclosure", notfound: "Not found" }[view]}`;
     Promise.resolve(views[view](params, arg)).catch((e) => { console.error(e); toast("err", "Something broke", B.friendly(e)); });
   }
 
   // ───────────────────────── chrome ─────────────────────────
   const nav = $("#nav");
+  new ResizeObserver(() => document.documentElement.style.setProperty("--navh", `${nav.offsetHeight}px`)).observe(nav);
   addEventListener("scroll", () => nav.classList.toggle("is-scrolled", scrollY > 8), { passive: true });
   $("#burger").onclick = () => { const o = !nav.classList.contains("is-open"); nav.classList.toggle("is-open", o); $("#burger").setAttribute("aria-expanded", String(o)); };
   const nets = B.networks();
@@ -674,6 +715,11 @@
   setNet(saved && (saved.demo || saved.chainId !== 31337 || isLocal) ? saved : firstLive || nets.find((n) => n.demo), true);
   startFeed();
   route();
+
+  window.LN_TOOLS.initTheme();
+  window.LN_TOOLS.initPalette(() => state.markets);
+  if (!state.markets.length) loadMarkets();
+  document.addEventListener("ln:theme", () => { if (viewTick) viewTick(); });
 
   window.LN_APP = { state, route };
 })();
