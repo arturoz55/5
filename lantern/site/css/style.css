@@ -453,3 +453,15 @@ h1, h2, h3 { text-wrap: balance; }
 .wallet-menu button, .wallet-menu a { text-align: left; padding: 10px 8px; border-radius: 10px; font-size: 14px; font-weight: 600; }
 .wallet-menu button:hover, .wallet-menu a:hover { background: var(--cobalt-soft); }
 #wallet .wicon { border-radius: 5px; }
+
+/* brand mark */
+.logo__img { width: 34px; height: 34px; transition: transform .8s var(--ease); }
+.logo:hover .logo__img { transform: rotate(-35deg) scale(1.08); }
+.logo__img--dark { display: none; }
+:root[data-theme="light"] .logo__img--light { display: none; }
+:root[data-theme="light"] .logo__img--dark { display: inline-block; }
+.footer__mark { display: flex; align-items: center; gap: 14px; }
+.footer__logo { width: clamp(52px, 8vw, 84px); height: auto; }
+.footer__mark .logo__img--dark { display: none; }
+:root[data-theme="light"] .footer__mark .logo__img--light { display: none; }
+:root[data-theme="light"] .footer__mark .logo__img--dark { display: inline-block; }
