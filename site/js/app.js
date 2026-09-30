@@ -320,6 +320,7 @@
           </aside>
         </div>
       </div>
+      <svg class="seal" viewBox="0 0 200 200" aria-hidden="true"><defs><path id="sealPath" d="M100,100 m-78,0 a78,78 0 1,1 156,0 a78,78 0 1,1 -156,0"/></defs><text><textPath href="#sealPath">LIQUIDITY LOCKED FOREVER · PAIRED WITH TAO · FORGED ON BITTENSOR · </textPath></text><text x="100" y="118" text-anchor="middle" class="seal__tau">τ</text></svg>
       <span class="scroll-cue" aria-hidden="true"></span>
     </section>
     <div class="ticker" id="ticker" aria-label="Recent launches"></div>
@@ -327,6 +328,16 @@
     <section class="section--tight"><div class="wrap">
       <div class="stats" id="stats">
         ${["Launches", "Locked liquidity", "Trades indexed", "Execution"].map((k, i) => `<div class="stat reveal" style="--d:${i * 0.08}s"><span class="eyebrow">${k}</span><div class="stat__v" data-stat="${i}">—</div><div class="stat__s" data-stat-s="${i}"></div></div>`).join("")}
+      </div>
+    </div></section>
+
+    <section class="section" style="padding-bottom:0"><div class="wrap">
+      <div class="section__head"><div><span class="eyebrow reveal">How it works</span><h2 class="h2" data-split>Three strikes.<br><em>One transaction.</em></h2></div>
+      <p class="lead reveal" style="max-width:40ch">From idea to a live, tradeable market in under a minute — with nothing left to trust.</p></div>
+      <div class="steps">
+        <article class="step reveal" data-tilt><div class="step__art" aria-hidden="true"><svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="44" class="ring"/><path d="M40 46h40M60 46v34" class="stroke"/><circle cx="80" cy="78" r="5" class="dot"/></svg></div><span class="step__n">01</span><h3 class="h3">Name it</h3><p>Pick a name, ticker, supply and story. Tag a subnet if it's a subnet coin.</p></article>
+        <article class="step reveal" style="--d:.1s" data-tilt><div class="step__art" aria-hidden="true"><svg viewBox="0 0 120 120"><path d="M28 84h64" class="stroke"/><path d="M36 84c6-30 42-30 48 0" class="stroke dash"/><text x="60" y="58" text-anchor="middle" class="glyph">τ</text></svg></div><span class="step__n">02</span><h3 class="h3">Seed it</h3><p>Deposit TAO or subnet alpha. That deposit sets the starting price.</p></article>
+        <article class="step reveal" style="--d:.2s" data-tilt><div class="step__art" aria-hidden="true"><svg viewBox="0 0 120 120"><rect x="38" y="54" width="44" height="34" rx="8" class="stroke"/><path d="M46 54v-10a14 14 0 0 1 28 0v10" class="stroke"/><circle cx="60" cy="71" r="4" class="dot"/></svg></div><span class="step__n">03</span><h3 class="h3">Lock it</h3><p>The pool is sealed forever. Trading opens instantly for everyone, creator included.</p></article>
       </div>
     </div></section>
 

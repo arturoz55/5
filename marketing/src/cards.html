@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Tensorforge cards</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root { --ink:#0b0a09; --ink2:#13110f; --bone:#efe8dc; --bone2:#b9b1a4; --bone3:#7d766c; --ember:#ff6a2b; --ember2:#ff9a4d; --up:#5fd49a; --line:rgba(239,232,220,.12);
+    --serif:"Fraunces",Georgia,serif; --sans:"Inter",system-ui,sans-serif; --mono:"JetBrains Mono",ui-monospace,monospace; }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { background: var(--ink); color: var(--bone); font-family: var(--sans); overflow: hidden; }
+  .card { position: relative; overflow: hidden; background: var(--ink); }
+  canvas.bg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .grain { position: absolute; inset: 0; opacity: .07; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>"); }
+  .vignette { position: absolute; inset: 0; background: radial-gradient(80% 70% at 70% 45%, transparent 30%, var(--ink) 100%); }
+  .content { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: space-between; }
+  .logo { display: flex; align-items: center; gap: 14px; font-weight: 600; letter-spacing: -.02em; }
+  .eyebrow { font: 500 16px/1 var(--mono); letter-spacing: .18em; text-transform: uppercase; color: var(--ember2); display: flex; align-items: center; gap: 12px; }
+  .eyebrow::before { content: ""; width: 26px; height: 1px; background: currentColor; }
+  .display { font-family: var(--serif); font-weight: 400; letter-spacing: -.04em; line-height: .95; }
+  .display em { color: var(--ember); font-style: italic; }
+  .muted { color: var(--bone2); }
+  .chip { display: inline-flex; align-items: center; gap: 10px; height: 40px; padding: 0 18px; border-radius: 999px; border: 1px solid var(--line); color: var(--bone2); font-size: 17px; background: rgba(11,10,9,.5); }
+  .chip i { width: 8px; height: 8px; border-radius: 50%; background: var(--ember); }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .tau { font: italic 400 1em/1 var(--serif); color: var(--ember); }
+  .step { flex: 1; border: 1px solid var(--line); border-radius: 22px; padding: 28px; background: rgba(19,17,15,.85); }
+  .step b { font: 500 14px/1 var(--mono); color: var(--bone3); letter-spacing: .12em; }
+  .step h3 { font: 400 40px/1 var(--serif); letter-spacing: -.02em; margin: 18px 0 10px; }
+  .step p { color: var(--bone2); font-size: 18px; line-height: 1.45; }
+  .stat { font: 500 22px/1 var(--mono); }
+  .lock { width: 150px; height: 150px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+const P = new URLSearchParams(location.search);
+const kind = P.get("card") || "launch";
+const SIZES = { avatar: [400, 400], header: [1500, 500], launch: [1200, 675], how: [1200, 675], lock: [1080, 1080], alpha: [1200, 675], video: [1280, 720] };
+const [W, H] = SIZES[kind];
+document.body.style.width = W + "px"; document.body.style.height = H + "px";
+const mark = (s) => `<svg width="${s}" height="${s}" viewBox="0 0 32 32"><rect x="1" y="1" width="30" height="30" rx="9" fill="#0b0a09" stroke="rgba(239,232,220,.3)"/><path d="M9 10h14M16 10v13" stroke="#ff6a2b" stroke-width="3" stroke-linecap="round"/><path d="M23 19.5v5M20.5 22h5" stroke="#efe8dc" stroke-width="1.6" stroke-linecap="round"/></svg>`;
+const logo = (s, fs) => `<div class="logo" style="font-size:${fs}px">${mark(s)}<span>Tensorforge</span></div>`;
+const bg = `<canvas class="bg" id="bg"></canvas><div class="vignette"></div><div class="grain"></div>`;
+
+const cards = {
+  avatar: () => `<div class="card" style="width:400px;height:400px;display:grid;place-items:center;background:radial-gradient(circle at 50% 45%, #2a130a, #0b0a09 70%)">
+      <svg width="300" height="300" viewBox="0 0 32 32"><path d="M9 10h14M16 10v13" stroke="#ff6a2b" stroke-width="3.2" stroke-linecap="round"/><path d="M23 19.5v5M20.5 22h5" stroke="#efe8dc" stroke-width="1.6" stroke-linecap="round"/></svg></div>`,
+  header: () => `<div class="card" style="width:1500px;height:500px">${bg}<div class="content" style="padding:70px 90px 60px 380px">
+      <div class="eyebrow">Token launches on Bittensor</div>
+      <h1 class="display" style="font-size:112px">Strike a token.<br><em>Temper</em> it in TAO.</h1>
+      <div class="row"><span class="chip"><i></i>Native TAO pairs</span><span class="chip"><i></i>Subnet-alpha pairs</span><span class="chip"><i></i>Liquidity locked forever</span></div></div></div>`,
+  launch: () => `<div class="card" style="width:1200px;height:675px">${bg}<div class="content" style="padding:64px 72px">
+      ${logo(44, 30)}
+      <div><div class="eyebrow" style="margin-bottom:26px">Now live</div>
+      <h1 class="display" style="font-size:118px">Strike a token.<br><em>Temper</em> it in TAO.</h1></div>
+      <div style="display:flex;justify-content:space-between;align-items:flex-end">
+        <div class="row"><span class="chip"><i></i>One transaction</span><span class="chip"><i></i>Zero creator allocation</span><span class="chip"><i></i>Locked forever</span></div>
+        <span class="muted" style="font:500 18px var(--mono)">Bittensor EVM · 964</span></div></div></div>`,
+  how: () => `<div class="card" style="width:1200px;height:675px">${bg}<div class="content" style="padding:60px 64px">
+      <div style="display:flex;justify-content:space-between;align-items:center">${logo(38, 26)}<span class="eyebrow">How it works</span></div>
+      <h1 class="display" style="font-size:84px">Three strikes. <em>One transaction.</em></h1>
+      <div style="display:flex;gap:18px">
+        <div class="step"><b>01</b><h3>Name it</h3><p>Name, ticker, supply and your thesis.</p></div>
+        <div class="step"><b>02</b><h3>Seed it</h3><p>Deposit <span class="tau">τ</span> TAO or subnet alpha. That sets the price.</p></div>
+        <div class="step"><b>03</b><h3>Lock it</h3><p>The pool is sealed forever. Trading opens instantly.</p></div>
+      </div></div></div>`,
+  lock: () => `<div class="card" style="width:1080px;height:1080px">${bg}<div class="content" style="padding:90px">
+      ${logo(48, 32)}
+      <div>
+        <svg class="lock" viewBox="0 0 120 120"><rect x="30" y="54" width="60" height="46" rx="12" fill="none" stroke="#ff6a2b" stroke-width="5"/><path d="M42 54V40a18 18 0 0 1 36 0v14" fill="none" stroke="#ff6a2b" stroke-width="5" stroke-linecap="round"/><circle cx="60" cy="77" r="6" fill="#efe8dc"/></svg>
+        <h1 class="display" style="font-size:140px;margin-top:40px">No LP.<br>No withdraw.<br><em>No pulled pool.</em></h1>
+      </div>
+      <p class="muted" style="font-size:26px;max-width:30ch;line-height:1.4">Every Tensorforge pool is locked the moment it's born. Not by a promise — by the contract.</p></div></div>`,
+  alpha: () => `<div class="card" style="width:1200px;height:675px">${bg}<div class="content" style="padding:64px 72px">
+      ${logo(40, 28)}
+      <div style="display:flex;gap:60px;align-items:center">
+        <div style="font:italic 300px/0.8 var(--serif);color:var(--ember)">τ</div>
+        <div style="font:400 90px/1 var(--serif);color:var(--bone3)">or</div>
+        <div style="font:italic 300px/0.8 var(--serif);color:var(--bone)">α</div>
+      </div>
+      <h1 class="display" style="font-size:64px">Pair with TAO or subnet alpha. <em>You pick the floor.</em></h1></div></div>`,
+  video: () => `<div class="card" style="width:1280px;height:720px">${bg}<div id="scene" class="content" style="padding:70px 80px"></div></div>`,
+};
+document.getElementById("root").innerHTML = cards[kind]();
+
+// lattice background (same motif as the site hero)
+const c = document.getElementById("bg");
+if (c) {
+  const ctx = c.getContext("2d"); c.width = W * 2; c.height = H * 2; ctx.scale(2, 2);
+  let seed = 964; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const pts = Array.from({ length: 150 }, () => { const u = rnd() * 2 - 1, t = rnd() * Math.PI * 2, r = .75 + rnd() * .35, s = Math.sqrt(1 - u * u); return { x: s * Math.cos(t) * r, y: u * r, z: s * Math.sin(t) * r }; });
+  const embers = Array.from({ length: 70 }, () => ({ x: rnd(), y: rnd(), s: rnd() * 1.8 + .4, v: .0008 + rnd() * .002 }));
+  const cx = W * (kind === "lock" ? .72 : kind === "header" ? .8 : .74), cy = H * (kind === "lock" ? .32 : .48), R = Math.min(W, H) * (kind === "header" ? .55 : .5);
+  function draw(t) {
+    ctx.clearRect(0, 0, W, H);
+    const ay = t * .00008 + 0.6, ax = .35, ca = Math.cos(ay), sa = Math.sin(ay), cb = Math.cos(ax), sb = Math.sin(ax);
+    const pr = pts.map((p) => { const x1 = p.x * ca - p.z * sa, z1 = p.x * sa + p.z * ca, y1 = p.y * cb - z1 * sb, z2 = p.y * sb + z1 * cb, f = 2.4 / (2.4 + z2); return { x: cx + x1 * R * f, y: cy + y1 * R * f, z: z2, f }; });
+    for (let i = 0; i < pr.length; i++) for (let j = i + 1; j < pr.length; j++) {
+      const a = pr[i], b = pr[j], d = (a.x - b.x) ** 2 + (a.y - b.y) ** 2, lim = (R * .27) ** 2;
+      if (d < lim) { ctx.strokeStyle = `rgba(239,232,220,${(1 - d / lim) * .3 * (2 - (a.z + b.z)) / 4})`; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); }
+    }
+    for (const p of pr) { const dp = (1.2 - p.z) / 2.2; ctx.fillStyle = p.z < -.3 ? `rgba(255,122,58,${.5 + dp * .5})` : `rgba(239,232,220,${.25 + dp * .6})`; ctx.beginPath(); ctx.arc(p.x, p.y, 1.2 + p.f * 1.5 * dp, 0, 7); ctx.fill(); }
+    const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, R * 1.1); g.addColorStop(0, "rgba(255,106,43,.2)"); g.addColorStop(1, "rgba(255,106,43,0)"); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    for (const e of embers) { const y = ((e.y - t * e.v * .06) % 1 + 1) % 1; ctx.fillStyle = `rgba(255,${120 + e.s * 40 | 0},60,${.25 + .5 * (1 - y)})`; ctx.beginPath(); ctx.arc(e.x * W, y * H, e.s, 0, 7); ctx.fill(); }
+  }
+  if (kind === "video") { const t0 = performance.now(); (function loop(n) { draw(n - t0 + 2000); requestAnimationFrame(loop); })(t0); } else draw(3000);
+}
+
+// video scenes: ~16 s total
+if (kind === "video") {
+  const scene = document.getElementById("scene");
+  const S = [
+    [2600, `<div></div><div><div class="eyebrow" style="margin-bottom:24px">Introducing</div>${logo(90, 88)}</div><div></div>`],
+    [2800, `<div class="eyebrow">Token launches on Bittensor</div><h1 class="display" style="font-size:120px">Strike a token.<br><em>Temper</em> it in TAO.</h1><div></div>`],
+    [2600, `<div class="eyebrow">01 · Name it</div><h1 class="display" style="font-size:110px">Your idea.<br><em>Your ticker.</em></h1><div class="muted" style="font-size:24px">Name, supply and thesis — nothing else.</div>`],
+    [2600, `<div class="eyebrow">02 · Seed it</div><h1 class="display" style="font-size:110px">Paired with <em>τ TAO</em><br>or subnet <em>α</em>.</h1><div class="muted" style="font-size:24px">Your deposit sets the starting price.</div>`],
+    [2600, `<div class="eyebrow">03 · Lock it</div><h1 class="display" style="font-size:110px">Liquidity locked.<br><em>Forever.</em></h1><div class="muted" style="font-size:24px">No LP tokens. No withdraw function. No creator allocation.</div>`],
+    [3200, `${logo(46, 32)}<h1 class="display" style="font-size:130px">Your <em>move.</em></h1><div class="row"><span class="chip"><i></i>One transaction</span><span class="chip"><i></i>Bittensor EVM</span><span class="chip"><i></i>Open source</span></div>`],
+  ];
+  scene.style.transition = "opacity .5s, transform .9s cubic-bezier(.2,.7,.1,1)";
+  let i = 0;
+  (function next() {
+    if (i >= S.length) { window.__done = true; return; }
+    const [ms, html] = S[i++];
+    scene.style.opacity = 0; scene.style.transform = "translateY(24px)";
+    setTimeout(() => { scene.innerHTML = html; scene.style.opacity = 1; scene.style.transform = "none"; setTimeout(next, ms); }, i === 1 ? 0 : 450);
+  })();
+}
+</script>
+</body>
+</html>

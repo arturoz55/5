@@ -246,6 +246,8 @@
 
   // ── pointer glow on buttons / sectors, and tilt on cards ──
   function pointerFx() {
+    const spot = document.getElementById("spotlight");
+    if (spot && !reduce) document.addEventListener("pointermove", (e) => { spot.style.setProperty("--sx", e.clientX + "px"); spot.style.setProperty("--sy", e.clientY + "px"); }, { passive: true });
     document.addEventListener("pointermove", (e) => {
       const el = e.target.closest && e.target.closest(".btn, .sector");
       if (!el) return;
