@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Lantern — the night desk for China's giants</title>
+  <meta name="description" content="Go long or short on eight US-listed Chinese companies at up to 10x. Margin in USDG, settled on chain." />
+  <meta name="theme-color" content="#0c0e18" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='9' fill='%230c0e18'/><path d='M16 5v3M11 9h10l2 4-2 11H11L9 13z' fill='%23f4a340'/><path d='M13 24h6v3h-6z' fill='%23f1e9d8'/></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300..700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="nav" id="nav">
+    <div id="banner"></div>
+    <div class="wrap nav__in">
+      <a href="#/" class="logo" aria-label="Lantern home">
+        <svg class="logo__mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3v3" stroke="#f1e9d8" stroke-width="1.6" stroke-linecap="round"/><path class="logo__body" d="M11 7h10l2.5 5-2.5 12H11L8.5 12z"/><path d="M11 12h10M11 18h10" stroke="#0c0e18" stroke-opacity=".35"/><path d="M13 24h6v3h-6z" fill="#f1e9d8"/></svg>
+        <span>Lantern</span>
+      </a>
+      <nav class="nav__links" aria-label="Primary">
+        <a href="#/markets" data-nav="markets">Markets</a>
+        <a href="#/portfolio" data-nav="portfolio">Portfolio</a>
+        <a href="#/vault" data-nav="vault">Vault</a>
+        <a href="#/learn" data-nav="learn">Learn</a>
+      </nav>
+      <div class="nav__right">
+        <select class="net" id="net" aria-label="Network"></select>
+        <button class="btn btn--sm" id="wallet"><span class="dot" id="walletDot"></span><span id="walletLabel">Connect</span></button>
+        <button class="burger" id="burger" aria-label="Menu" aria-expanded="false"><span></span><span></span></button>
+      </div>
+    </div>
+    <div class="mmenu" id="mmenu">
+      <a href="#/markets">Markets</a><a href="#/portfolio">Portfolio</a><a href="#/vault">Vault</a><a href="#/learn">Learn</a>
+      <select class="net" id="netMobile" aria-label="Network"></select>
+    </div>
+  </header>
+
+  <main id="main" tabindex="-1"></main>
+
+  <footer class="footer">
+    <div class="wrap footer__in">
+      <div>
+        <p class="footer__mark">Lantern</p>
+        <p class="faint small">Leveraged trading is risky. Positions can be liquidated and lose all margin. Lantern is not affiliated with any company listed here.</p>
+      </div>
+      <nav class="footer__nav" aria-label="Footer">
+        <a href="#/learn">How it works</a><a href="#/risk">Risk disclosure</a><a href="#/vault">Provide liquidity</a>
+      </nav>
+    </div>
+    <div class="wrap faint small footer__base">© <span id="year"></span> Lantern · MIT licensed</div>
+  </footer>
+
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+
+  <script src="vendor/ethers.umd.min.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/deployments.js"></script>
+  <script src="js/demo.js"></script>
+  <script src="js/backend.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

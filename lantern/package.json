@@ -1,0 +1,12 @@
+{
+  "name": "lantern",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "test": "hardhat test",
+    "node": "hardhat node",
+    "deploy:local": "hardhat run scripts/deploy.js --network localhost",
+    "serve": "http-server site -p 8090 -c-1",
+    "e2e": "node tests/e2e.js"
+  }
+}

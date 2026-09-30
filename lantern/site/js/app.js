@@ -1,0 +1,679 @@
+// Lantern — app shell, router and views
+(function () {
+  const { ethers } = window;
+  const CFG = window.LN_CONFIG;
+  const B = window.LN_BACKEND;
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+  const main = $("#main");
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const BPS = 10000n;
+
+  // ───────────────────────── utils ─────────────────────────
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const ls = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch { /* ignore */ } } };
+  const dec = () => (state.be ? state.be.decimals : 6);
+  const toUsd = (units) => (units === null || units === undefined ? NaN : Number(units) / 10 ** dec());
+  const toPx = (p) => Number(p) / 1e8;
+  const money = (n, d = 2) => (!isFinite(n) ? "—" : (n < 0 ? "−$" : "$") + Math.abs(n).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d }));
+  const compact = (n) => (!isFinite(n) ? "—" : Math.abs(n) >= 1e6 ? "$" + (n / 1e6).toFixed(2) + "M" : Math.abs(n) >= 1e4 ? "$" + (n / 1e3).toFixed(1) + "K" : money(n));
+  const pxFmt = (n) => (!isFinite(n) ? "—" : "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: n < 10 ? 3 : 2 }));
+  const pct = (n) => (!isFinite(n) ? "—" : `${n >= 0 ? "+" : "−"}${Math.abs(n).toFixed(2)}%`);
+  const parseUnits = (s) => {
+    const v = String(s || "").trim().replace(/,/g, "");
+    if (!/^\d*\.?\d*$/.test(v) || v === "" || v === ".") return null;
+    try { const [i, f = ""] = v.split("."); return ethers.parseUnits(`${i || "0"}.${f.slice(0, dec()) || "0"}`, dec()); } catch { return null; }
+  };
+  const ago = (t) => { const s = Math.max(0, Math.floor(Date.now() / 1000 - t)); return s < 60 ? `${s}s ago` : s < 3600 ? `${Math.floor(s / 60)}m ago` : s < 86400 ? `${Math.floor(s / 3600)}h ago` : `${Math.floor(s / 86400)}d ago`; };
+  const badge = (m) => `<span class="tick__badge" style="background:linear-gradient(135deg,hsl(${m.hue} 80% 66%),hsl(${(m.hue + 30) % 360} 70% 48%))">${esc(m.symbol.slice(0, 4))}</span>`;
+
+  // ───────────────────────── state ─────────────────────────
+  const state = { net: null, be: null, markets: [], hist: new Map(), params: null, unsub: null };
+
+  function change24(i) {
+    const h = state.hist.get(i);
+    if (!h || h.length < 2) return NaN;
+    const cut = Date.now() / 1000 - 86400;
+    let base = h[0].p;
+    for (const x of h) { if (x.t <= cut) base = x.p; else break; }
+    const now = toPx(state.markets[i]?.price ?? 0) || h[h.length - 1].p;
+    return base ? ((now - base) / base) * 100 : NaN;
+  }
+
+  // ───────────────────────── toasts ─────────────────────────
+  function toast(kind, title, body, ms = 4500) {
+    const t = document.createElement("div");
+    t.className = `toast ${kind}`;
+    t.innerHTML = `<i></i><div><b></b><span class="muted small"></span></div>`;
+    t.querySelector("b").textContent = title;
+    t.querySelector(".muted").textContent = body || "";
+    $("#toasts").appendChild(t);
+    const kill = () => t.remove();
+    if (ms) setTimeout(kill, ms);
+    return { set(a, b2, k) { if (k) t.className = `toast ${k}`; t.querySelector("b").textContent = a; t.querySelector(".muted").textContent = b2 || ""; }, kill, done(ms2 = 4000) { setTimeout(kill, ms2); } };
+  }
+  async function run(label, fn) {
+    const t = toast("wait", label, "Preparing…", 0);
+    try { const r = await fn((m) => t.set(label, m)); t.set("Done", label.replace(/…$/, ""), "ok"); t.done(); return r ?? true; }
+    catch (e) { console.warn(e); t.set("Couldn't finish", B.friendly(e), "err"); t.done(7000); return false; }
+  }
+
+  // ───────────────────────── network & wallet ─────────────────────────
+  function setNet(n, silent) {
+    if (state.unsub) { state.unsub(); state.unsub = null; }
+    state.net = n; state.be = B.make(n); state.markets = []; state.hist = new Map(); state.params = null;
+    ls.set("ln-net", n.key);
+    $$(".net").forEach((s) => (s.value = n.key));
+    const b = $("#banner");
+    if (n.demo) {
+      b.innerHTML = `<div class="banner">Demo network: prices are simulated and no real money moves.<button id="resetDemo">Reset demo</button></div>`;
+      $("#resetDemo").onclick = () => { state.be.reset(); toast("ok", "Demo reset", "Fresh prices and a refilled wallet."); setNet(n); };
+    } else b.innerHTML = "";
+    wallet();
+    if (!silent) route();
+  }
+  async function wallet() {
+    const a = state.be?.account;
+    $("#walletDot").classList.toggle("on", !!a);
+    if (!a) { $("#walletLabel").textContent = "Connect"; return; }
+    let bal = "";
+    try { const v = await state.be.balance(); if (v !== null) bal = ` · ${compact(toUsd(v))}`; } catch { /* ignore */ }
+    $("#walletLabel").textContent = `${a.slice(0, 6)}…${a.slice(-4)}${bal}`;
+  }
+  async function connect() {
+    try {
+      await state.be.connect();
+      toast("ok", "Wallet connected", state.net.demo ? "Your demo wallet holds 10,000 USDG." : "");
+      wallet(); document.dispatchEvent(new Event("ln:wallet"));
+      return true;
+    } catch (e) { toast("err", "Couldn't connect", B.friendly(e)); return false; }
+  }
+  $("#wallet").onclick = () => {
+    if (state.be.account) { state.be.disconnect(); wallet(); toast("ok", "Disconnected", ""); document.dispatchEvent(new Event("ln:wallet")); }
+    else connect();
+  };
+  if (window.ethereum?.on) {
+    window.ethereum.on("accountsChanged", () => { if (!state.net.demo) { state.be.disconnect(); wallet(); document.dispatchEvent(new Event("ln:wallet")); } });
+    window.ethereum.on("chainChanged", () => { if (!state.net.demo) { state.be.disconnect(); wallet(); } });
+  }
+
+  async function loadMarkets() {
+    try {
+      state.markets = await state.be.markets();
+      if (!state.params) state.params = await state.be.params();
+    } catch (e) { console.warn(e); toast("err", "Couldn't load markets", B.friendly(e)); state.markets = []; }
+    return state.markets;
+  }
+  async function loadHist(i, force) {
+    if (state.hist.has(i) && !force) return state.hist.get(i);
+    try { state.hist.set(i, await state.be.history(i)); } catch (e) { console.warn(e); state.hist.set(i, []); }
+    return state.hist.get(i);
+  }
+  // live updates for the current view only
+  let viewTick = null;
+  function onTick(fn) { viewTick = fn; }
+  function startFeed() {
+    if (state.unsub) state.unsub();
+    state.unsub = state.be.subscribe(async (ev) => {
+      if (ev.liquidated?.length) ev.liquidated.forEach((p) => toast("err", "Position liquidated", `${state.markets[p.marketId]?.symbol || ""} ${p.isLong ? "long" : "short"} fell below maintenance margin.`, 8000));
+      const prev = state.markets.map((m) => m.price);
+      await loadMarkets();
+      if (state.be.demo) state.hist.clear(); // simulated feed moves every tick
+      if (viewTick) viewTick(prev);
+      wallet();
+    });
+  }
+
+  // ───────────────────────── canvas helpers ─────────────────────────
+  function fit(c) {
+    const r = c.getBoundingClientRect(), d = Math.min(devicePixelRatio || 1, 2);
+    const w = Math.max(1, Math.round(r.width * d)), h = Math.max(1, Math.round(r.height * d));
+    if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+    const ctx = c.getContext("2d"); ctx.setTransform(d, 0, 0, d, 0, 0);
+    return { ctx, w: r.width, h: r.height };
+  }
+  function spark(c, vals, up) {
+    if (!c) return;
+    const { ctx, w, h } = fit(c);
+    ctx.clearRect(0, 0, w, h);
+    if (!vals || vals.length < 2) return;
+    const mn = Math.min(...vals), mx = Math.max(...vals), sp = mx - mn || 1;
+    const col = up ? "#3ecf9a" : "#ff5a4e";
+    ctx.beginPath();
+    vals.forEach((v, i) => { const x = (i / (vals.length - 1)) * w, y = h - 2 - ((v - mn) / sp) * (h - 4); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+    ctx.strokeStyle = col; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.lineTo(w, h); ctx.lineTo(0, h); ctx.closePath();
+    const g = ctx.createLinearGradient(0, 0, 0, h); g.addColorStop(0, col + "33"); g.addColorStop(1, col + "00"); ctx.fillStyle = g; ctx.fill();
+  }
+
+  function sky(canvas) {
+    const lanterns = Array.from({ length: innerWidth < 700 ? 16 : 30 }, () => mk(true));
+    const stars = Array.from({ length: 90 }, () => ({ x: Math.random(), y: Math.random() * 0.7, s: Math.random() * 1.2 + 0.2, p: Math.random() * 6 }));
+    function mk(anywhere) {
+      const z = Math.random();
+      return { x: Math.random(), y: anywhere ? Math.random() * 1.1 : 1.1 + Math.random() * 0.2, z, v: 0.00012 + z * 0.00035, sw: Math.random() * 6, w: 10 + z * 22 };
+    }
+    let raf = 0, vis = true;
+    const io = new IntersectionObserver(([e]) => { vis = e.isIntersecting; if (vis && !raf) loop(); });
+    io.observe(canvas);
+    function draw(t) {
+      const { ctx, w, h } = fit(canvas);
+      ctx.clearRect(0, 0, w, h);
+      for (const s of stars) { ctx.fillStyle = `rgba(241,233,216,${0.25 + 0.25 * Math.sin(t / 900 + s.p)})`; ctx.fillRect(s.x * w, s.y * h, s.s, s.s); }
+      lanterns.sort((a, b) => a.z - b.z);
+      for (const l of lanterns) {
+        if (!reduce) { l.y -= l.v; l.sw += 0.01; }
+        if (l.y < -0.15) Object.assign(l, mk(false));
+        const x = l.x * w + Math.sin(l.sw) * 14 * l.z, y = l.y * h, lw = l.w, lh = lw * 1.25;
+        const g = ctx.createRadialGradient(x, y, 0, x, y, lw * 3);
+        g.addColorStop(0, `rgba(244,163,64,${0.18 + l.z * 0.22})`); g.addColorStop(1, "rgba(244,163,64,0)");
+        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, lw * 3, 0, 7); ctx.fill();
+        const body = ctx.createLinearGradient(x, y - lh / 2, x, y + lh / 2);
+        body.addColorStop(0, `rgba(255,214,150,${0.55 + l.z * 0.45})`); body.addColorStop(1, `rgba(214,96,40,${0.55 + l.z * 0.45})`);
+        ctx.fillStyle = body;
+        ctx.beginPath();
+        ctx.moveTo(x - lw * 0.42, y - lh / 2); ctx.lineTo(x + lw * 0.42, y - lh / 2);
+        ctx.quadraticCurveTo(x + lw * 0.62, y, x + lw * 0.4, y + lh / 2); ctx.lineTo(x - lw * 0.4, y + lh / 2);
+        ctx.quadraticCurveTo(x - lw * 0.62, y, x - lw * 0.42, y - lh / 2); ctx.fill();
+        ctx.fillStyle = `rgba(255,240,200,${0.5 * l.z})`; ctx.fillRect(x - lw * 0.12, y + lh / 2 - 2, lw * 0.24, 2);
+      }
+    }
+    function loop(t = performance.now()) {
+      raf = 0;
+      if (!canvas.isConnected) { io.disconnect(); return; }
+      draw(t);
+      if (vis && !reduce && !document.hidden) raf = requestAnimationFrame(loop);
+    }
+    loop();
+  }
+
+  // a single oracle update still deserves a line: hold it flat until now
+  const withNow = (pts) => (pts.length === 1 ? [pts[0], { t: Math.max(pts[0].t + 60, Math.floor(Date.now() / 1000)), p: pts[0].p }] : pts);
+  function chart(host, pts, fmt) {
+    pts = withNow(pts);
+    host.innerHTML = `<canvas></canvas><div class="tip"></div>`;
+    const c = host.querySelector("canvas"), tip = host.querySelector(".tip");
+    let hover = -1, entries = [];
+    const draw = () => {
+      const { ctx, w, h } = fit(c);
+      ctx.clearRect(0, 0, w, h);
+      if (pts.length < 2) { ctx.fillStyle = "#7d7b88"; ctx.font = "13px 'IBM Plex Sans', sans-serif"; ctx.textAlign = "center"; ctx.fillText("Waiting for price history…", w / 2, h / 2); return; }
+      const L = 8, R = 70, T = 14, Bm = 26;
+      const vs = pts.map((p) => p.p).concat(entries.map((e) => e.v));
+      let mn = Math.min(...vs), mx = Math.max(...vs); const pad = (mx - mn) * 0.1 || mx * 0.01; mn -= pad; mx += pad;
+      const t0 = pts[0].t, t1 = pts[pts.length - 1].t, ts = t1 - t0 || 1;
+      const X = (t) => L + ((t - t0) / ts) * (w - L - R), Y = (v) => T + (1 - (v - mn) / (mx - mn)) * (h - T - Bm);
+      ctx.font = "11px 'IBM Plex Mono', monospace"; ctx.fillStyle = "#7d7b88"; ctx.strokeStyle = "rgba(241,233,216,.06)";
+      for (let i = 0; i <= 4; i++) { const v = mn + ((mx - mn) * i) / 4, y = Y(v); ctx.beginPath(); ctx.moveTo(L, y); ctx.lineTo(w - R + 4, y); ctx.stroke(); ctx.textAlign = "left"; ctx.fillText(fmt.axis(v), w - R + 8, y + 4); }
+      ctx.textAlign = "center";
+      for (let i = 0; i <= 3; i++) { const t = t0 + (ts * i) / 3; ctx.fillText(fmt.time(t), Math.min(Math.max(X(t), 28), w - R - 28), h - 7); }
+      const up = pts[pts.length - 1].p >= pts[0].p, col = up ? "#3ecf9a" : "#ff5a4e";
+      ctx.beginPath(); pts.forEach((p, i) => (i ? ctx.lineTo(X(p.t), Y(p.p)) : ctx.moveTo(X(p.t), Y(p.p))));
+      ctx.strokeStyle = col; ctx.lineWidth = 1.7; ctx.stroke();
+      ctx.lineTo(X(t1), h - Bm); ctx.lineTo(X(t0), h - Bm); ctx.closePath();
+      const g = ctx.createLinearGradient(0, T, 0, h - Bm); g.addColorStop(0, col + "30"); g.addColorStop(1, col + "00"); ctx.fillStyle = g; ctx.fill();
+      // position entry and liquidation lines
+      for (const e of entries) {
+        const y = Y(e.v); ctx.setLineDash([4, 4]); ctx.strokeStyle = e.color; ctx.beginPath(); ctx.moveTo(L, y); ctx.lineTo(w - R + 4, y); ctx.stroke(); ctx.setLineDash([]);
+        ctx.fillStyle = e.color; ctx.textAlign = "left"; ctx.fillText(e.label, L + 4, y - 5);
+      }
+      const last = pts[pts.length - 1], ly = Y(last.p);
+      ctx.fillStyle = col; ctx.beginPath(); ctx.arc(X(last.t), ly, 3.5, 0, 7); ctx.fill();
+      if (!reduce) { ctx.strokeStyle = col + "66"; ctx.beginPath(); ctx.arc(X(last.t), ly, 3.5 + ((performance.now() / 60) % 10), 0, 7); ctx.stroke(); }
+      if (hover >= 0) {
+        const p = pts[hover], x = X(p.t), y = Y(p.p);
+        ctx.strokeStyle = "rgba(241,233,216,.25)"; ctx.beginPath(); ctx.moveTo(x, T); ctx.lineTo(x, h - Bm); ctx.stroke();
+        ctx.fillStyle = "#f1e9d8"; ctx.beginPath(); ctx.arc(x, y, 3.5, 0, 7); ctx.fill();
+        tip.textContent = `${fmt.value(p.p)} · ${fmt.full(p.t)}`; tip.style.opacity = 1;
+        tip.style.left = Math.min(Math.max(x - tip.offsetWidth / 2, 0), w - tip.offsetWidth) + "px"; tip.style.top = Math.max(y - 40, 0) + "px";
+      } else tip.style.opacity = 0;
+      draw.X = X;
+    };
+    c.addEventListener("pointermove", (e) => { if (!draw.X) return; let bi = 0, bd = 1e9; pts.forEach((p, i) => { const d = Math.abs(draw.X(p.t) - e.offsetX); if (d < bd) { bd = d; bi = i; } }); hover = bi; draw(); });
+    c.addEventListener("pointerleave", () => { hover = -1; draw(); });
+    new ResizeObserver(draw).observe(host);
+    draw();
+    return { update(np, ne) { pts = withNow(np); entries = ne || entries; draw(); }, setEntries(ne) { entries = ne; draw(); } };
+  }
+
+  // ───────────────────────── clocks ─────────────────────────
+  function zoneParts(tz) {
+    const f = new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "short", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+    const o = Object.fromEntries(f.formatToParts(new Date()).map((p) => [p.type, p.value]));
+    const h = Number(o.hour) % 24, m = Number(o.minute), s = Number(o.second);
+    return { h, m, s, wd: o.weekday, label: `${String(h).padStart(2, "0")}:${o.minute}:${o.second}` };
+  }
+  const weekday = (wd) => !["Sat", "Sun"].includes(wd);
+  function nyOpen() { const z = zoneParts("America/New_York"); const mins = z.h * 60 + z.m; return weekday(z.wd) && mins >= 570 && mins < 960; }
+  function shOpen() { const z = zoneParts("Asia/Shanghai"); const mins = z.h * 60 + z.m; return weekday(z.wd) && ((mins >= 570 && mins < 690) || (mins >= 780 && mins < 900)); }
+  function renderClocks() {
+    const el = $("#clocks");
+    if (!el) return false;
+    [["ny", "America/New_York", nyOpen()], ["sh", "Asia/Shanghai", shOpen()]].forEach(([k, tz, open]) => {
+      const z = zoneParts(tz);
+      $(`#${k}Time`).textContent = `${z.wd} ${z.label}`;
+      $(`#${k}H`).style.transform = `rotate(${(z.h % 12) * 30 + z.m / 2}deg)`;
+      $(`#${k}M`).style.transform = `rotate(${z.m * 6}deg)`;
+      const p = $(`#${k}Pill`); p.textContent = open ? "Open" : "Closed"; p.className = `pill ${open ? "pill--open" : "pill--closed"}`;
+    });
+    const ny = nyOpen(), sh = shOpen();
+    $("#clockNote").textContent = ny && !sh ? "Right now New York is trading these names while Shanghai sleeps." : sh && !ny ? "Shanghai is trading. The New York listings reopen at 9:30 ET." : ny && sh ? "Both exchanges are open." : "Both exchanges are closed. Oracle prices hold at the last update until trading resumes.";
+    return true;
+  }
+  let clockTimer = null;
+
+  // ───────────────────────── views ─────────────────────────
+  const views = {};
+
+  function boardRow(m) {
+    const ch = change24(m.id);
+    return `<a class="board__row" href="#/trade/${esc(m.symbol)}" data-row="${m.id}">
+      <div class="tick">${badge(m)}<div style="min-width:0"><div class="tick__sym">${esc(m.symbol)}</div><div class="tick__name">${esc(m.name)}</div></div></div>
+      <div class="mono price-cell" data-px="${m.id}">${pxFmt(toPx(m.price))}</div>
+      <div class="mono ${ch >= 0 ? "long" : "short"}" data-ch="${m.id}">${pct(ch)}</div>
+      <div><canvas data-spark="${m.id}" aria-hidden="true"></canvas></div>
+      <div class="row" style="gap:6px;flex-wrap:nowrap"><span class="btn btn--xs btn--jade" data-go="long">Long</span><span class="btn btn--xs btn--cinnabar" data-go="short">Short</span></div>
+    </a>`;
+  }
+  function board(host) {
+    host.innerHTML = `<div class="board__row board__row--head"><span class="label">Market</span><span class="label">Price</span><span class="label">24h</span><span class="label">24h chart</span><span class="label" style="text-align:right">Trade</span></div>` + state.markets.map(boardRow).join("");
+    $$("[data-go]", host).forEach((b) => b.addEventListener("click", (e) => { e.preventDefault(); const row = b.closest("[data-row]"); location.hash = `#/trade/${state.markets[row.dataset.row].symbol}?side=${b.dataset.go}`; }));
+    drawSparks(host);
+  }
+  async function drawSparks(host) {
+    for (const m of state.markets) {
+      const h = await loadHist(m.id);
+      spark($(`[data-spark="${m.id}"]`, host), h.map((x) => x.p), change24(m.id) >= 0);
+      const chEl = $(`[data-ch="${m.id}"]`, host);
+      if (chEl) { const ch = change24(m.id); chEl.textContent = pct(ch); chEl.className = `mono ${ch >= 0 ? "long" : "short"}`; }
+    }
+  }
+  function updateBoard(host, prev) {
+    state.markets.forEach((m, i) => {
+      const el = $(`[data-px="${m.id}"]`, host);
+      if (!el) return;
+      el.textContent = pxFmt(toPx(m.price));
+      if (prev && prev[i] !== undefined && prev[i] !== m.price) { el.classList.remove("flash-up", "flash-down"); void el.offsetWidth; el.classList.add(m.price > prev[i] ? "flash-up" : "flash-down"); }
+    });
+    drawSparks(host);
+  }
+
+  views.home = async () => {
+    main.innerHTML = `
+    <section class="hero">
+      <canvas class="hero__sky" id="sky" aria-hidden="true"></canvas>
+      <div class="wrap hero__in">
+        <div class="hero__copy">
+          <span class="kicker reveal">Eight markets · up to 10×</span>
+          <h1 class="display reveal" style="--d:.08s;margin-top:22px">The night desk<br>for China's <span class="glow">giants.</span></h1>
+          <p class="lead reveal" style="--d:.16s">Go long or short on eight US-listed Chinese companies with up to 10× leverage. Post margin in USDG, settle on chain, and keep trading after Shanghai has gone to bed.</p>
+          <div class="row reveal" style="--d:.24s"><a class="btn btn--amber" href="#/trade/BABA">Start trading →</a><a class="btn btn--ghost" href="#/learn">How it works</a></div>
+        </div>
+        <aside class="clocks reveal" id="clocks" style="--d:.3s" aria-label="Exchange clocks">
+          ${[["ny", "New York", "NYSE · Nasdaq"], ["sh", "Shanghai", "SSE · home market"]].map(([k, city, ex]) => `
+          <div class="clock">
+            <svg class="dial" viewBox="0 0 56 56" aria-hidden="true"><circle cx="28" cy="28" r="26"/><line class="h" id="${k}H" x1="28" y1="28" x2="28" y2="15"/><line class="m" id="${k}M" x1="28" y1="28" x2="28" y2="8"/><circle class="c" cx="28" cy="28" r="2.5"/></svg>
+            <div><div class="clock__city">${city}</div><div class="clock__time" id="${k}Time">—</div><div class="faint small">${ex}</div></div>
+            <span class="pill" id="${k}Pill">—</span>
+          </div>`).join("")}
+          <p class="clocks__note" id="clockNote"></p>
+        </aside>
+      </div>
+    </section>
+
+    <section class="section" style="padding-top:24px"><div class="wrap">
+      <div class="head"><div><span class="kicker">Markets</span><h2 class="h2">Eight names. Two directions.</h2></div><span class="faint small mono" id="feedNote"></span></div>
+      <div class="board" id="board"><div class="empty">Loading markets…</div></div>
+    </div></section>
+
+    <section class="section" style="padding-top:0"><div class="wrap">
+      <div class="head"><div><span class="kicker">How a trade works</span><h2 class="h2">Margin in, position out.</h2></div></div>
+      <div class="steps">
+        <article class="step"><svg class="ico" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="11" width="28" height="20" rx="4"/><path d="M6 17h28M12 25h6"/></svg><h3 class="h3">Post margin</h3><p>Deposit USDG as margin. A 0.1% fee on the position size is taken when you open and again when you close.</p></article>
+        <article class="step"><svg class="ico" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 30l9-9 6 6 13-15"/><path d="M26 12h8v8"/></svg><h3 class="h3">Pick a side</h3><p>Long if you expect the price to rise, short if you expect it to fall. Choose 1× to 10× leverage.</p></article>
+        <article class="step"><svg class="ico" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2"><circle cx="20" cy="20" r="13"/><path d="M20 12v8l5 4"/></svg><h3 class="h3">Close, or be closed</h3><p>Close whenever the feed is live. If your equity falls below 5% of the position, anyone can liquidate it.</p></article>
+      </div>
+    </div></section>
+
+    <section class="section" style="padding-top:0"><div class="wrap">
+      <div class="head"><div><span class="kicker">The vault</span><h2 class="h2">Every trade has a counterparty.</h2></div><a class="btn btn--ghost btn--sm" href="#/vault">Provide liquidity →</a></div>
+      <div class="stats" id="vaultStats">${["Vault assets", "Open interest", "Net exposure", "Exposure cap"].map((k) => `<div class="stat"><span class="label">${k}</span><div class="stat__v">—</div><div class="stat__s"></div></div>`).join("")}</div>
+      <p class="note" style="margin-top:24px">Lantern is not affiliated with, endorsed by or a broker for any company listed here. You never own the shares. Positions only track their price.</p>
+    </div></section>`;
+
+    sky($("#sky"));
+    renderClocks(); clearInterval(clockTimer); clockTimer = setInterval(() => { if (!renderClocks()) clearInterval(clockTimer); }, 1000);
+    await loadMarkets();
+    if (!$("#board")) return;
+    board($("#board"));
+    $("#feedNote").textContent = state.net.demo ? "Simulated feed · updates every 3 s" : `Oracle feed · ${state.net.name}`;
+    const vs = async () => {
+      try {
+        const v = await state.be.vault();
+        const oi = state.markets.reduce((a, m) => a + toUsd(m.longNotional) + toUsd(m.shortNotional), 0);
+        const cap = Number(state.params?.maxNetExposureBps ?? 5000n) / 100;
+        const vals = [[compact(toUsd(v.assets)), "USDG backing every position"], [compact(oi), "long + short, all markets"], [compact(toUsd(v.net)), "what the vault is exposed to"], [`${cap}%`, "of vault assets, max net exposure"]];
+        $$("#vaultStats .stat").forEach((s, i) => { $(".stat__v", s).textContent = vals[i][0]; $(".stat__s", s).textContent = vals[i][1]; });
+      } catch (e) { console.warn(e); }
+    };
+    vs();
+    onTick((prev) => { if ($("#board")) { updateBoard($("#board"), prev); vs(); } });
+  };
+
+  views.markets = async () => {
+    main.innerHTML = `<section class="page"><div class="wrap">
+      <div class="head"><div><span class="kicker">Markets</span><h1 class="h2">All markets</h1></div><span class="faint small mono" id="feedNote"></span></div>
+      <div class="board" id="board"><div class="empty">Loading markets…</div></div>
+    </div></section>`;
+    await loadMarkets();
+    if (!$("#board")) return;
+    board($("#board"));
+    $("#feedNote").textContent = state.net.demo ? "Simulated feed · updates every 3 s" : `Oracle feed · ${state.net.name}`;
+    onTick((prev) => $("#board") && updateBoard($("#board"), prev));
+  };
+
+  function positionsTable(list, { withActions = true } = {}) {
+    if (!state.be.account) return `<div class="empty"><p>Connect a wallet to see your positions.</p><button class="btn btn--sm" data-connect>Connect</button></div>`;
+    if (!list.length) return `<div class="empty"><p>No open positions.</p></div>`;
+    return `<div class="table-wrap"><table class="table"><thead><tr><th>Market</th><th>Side</th><th>Size</th><th>Entry</th><th>Mark</th><th>Liq. price</th><th>Margin</th><th>PnL</th>${withActions ? "<th></th>" : ""}</tr></thead><tbody>
+      ${list.map((p) => {
+        const m = state.markets[p.marketId] || { symbol: "?" };
+        const pnl = toUsd(p.pnl), roe = (pnl / toUsd(p.margin)) * 100;
+        const lev = Number(p.size) / Number(p.margin);
+        return `<tr data-pos="${p.id}"><td><b>${esc(m.symbol)}</b></td><td class="${p.isLong ? "long" : "short"}">${p.isLong ? "Long" : "Short"} ${lev.toFixed(1)}×</td>
+        <td>${money(toUsd(p.size))}</td><td>${pxFmt(toPx(p.entryPrice))}</td><td>${pxFmt(toPx(p.mark))}</td><td class="${p.liquidatable ? "short" : ""}">${pxFmt(toPx(p.liqPrice))}</td>
+        <td>${money(toUsd(p.margin))}</td><td class="${pnl >= 0 ? "long" : "short"}">${money(pnl)} <span class="faint">(${pct(roe)})</span></td>
+        ${withActions ? `<td><div class="row" style="flex-wrap:nowrap;gap:6px"><button class="btn btn--xs btn--ghost" data-add="${p.id}">Add margin</button><button class="btn btn--xs" data-close="${p.id}">Close</button></div>
+          <div class="row" data-addform="${p.id}" hidden style="margin-top:8px;flex-wrap:nowrap"><div class="amount" style="height:34px;padding:0 8px"><input id="add-${p.id}" inputmode="decimal" placeholder="USDG" style="height:32px;font-size:14px;width:90px" aria-label="Margin to add"></div><button class="btn btn--xs btn--amber" data-addgo="${p.id}">Add</button></div></td>` : ""}
+        </tr>`;
+      }).join("")}</tbody></table></div>`;
+  }
+  function bindPositions(host, refresh) {
+    $$("[data-connect]", host).forEach((b) => (b.onclick = connect));
+    $$("[data-close]", host).forEach((b) => (b.onclick = async () => { b.disabled = true; if (await run("Closing position…", (st) => state.be.close(Number(b.dataset.close), st))) { await refresh(); wallet(); } else b.disabled = false; }));
+    $$("[data-add]", host).forEach((b) => (b.onclick = () => { const f = $(`[data-addform="${b.dataset.add}"]`, host); f.hidden = !f.hidden; if (!f.hidden) $("input", f).focus(); }));
+    $$("[data-addgo]", host).forEach((b) => (b.onclick = async () => {
+      const amt = parseUnits($(`#add-${b.dataset.addgo}`).value);
+      if (!amt) { toast("err", "Enter an amount", "How much USDG to add as margin."); return; }
+      if (await run("Adding margin…", (st) => state.be.addMargin(Number(b.dataset.addgo), amt, st))) { await refresh(); wallet(); }
+    }));
+  }
+
+  views.trade = async (params, sym) => {
+    await loadMarkets();
+    const m = state.markets.find((x) => x.symbol === String(sym).toUpperCase());
+    if (!m) { views.notfound(); return; }
+    const p = state.params;
+    let side = params.get("side") === "short" ? "short" : "long";
+    let lev = Math.min(m.maxLeverage, Number(ls.get("ln-lev")) || 5);
+    main.innerHTML = `<section class="page"><div class="wrap">
+      <nav class="strip" aria-label="Markets">${state.markets.map((x) => `<a href="#/trade/${esc(x.symbol)}" class="${x.id === m.id ? "is-on" : ""}"><b>${esc(x.symbol)}</b><span data-strip="${x.id}">${pxFmt(toPx(x.price))}</span></a>`).join("")}</nav>
+      <div class="tradehead">${badge(m)}<div><h1>${esc(m.symbol)}</h1><div class="muted small">${esc(m.name)} · ${esc(m.sector)}</div></div>
+        <div class="tradehead__px"><div class="big" id="tPx">${pxFmt(toPx(m.price))}</div><div class="mono small"><span id="tCh"></span> · <span class="faint" id="tUpd"></span></div></div></div>
+      <div class="tgrid">
+        <div>
+          <div class="panel"><div class="chart" id="chart"></div></div>
+          <div class="panel"><div class="head" style="margin-bottom:12px"><span class="label">Your positions</span><span class="faint small" id="posNote"></span></div><div id="positions"></div></div>
+        </div>
+        <form class="panel" id="order" novalidate>
+          <div class="seg" id="side"><button type="button" data-s="long">Long</button><button type="button" data-s="short">Short</button></div>
+          <div class="field"><div class="fieldhead"><label class="label" for="margin">Margin</label><span class="faint small" id="bal"></span></div>
+            <div class="amount"><input id="margin" inputmode="decimal" placeholder="0.00" autocomplete="off"><span>USDG</span></div></div>
+          <div class="field"><div class="fieldhead"><label class="label" for="lev">Leverage</label><span class="mono" id="levV"></span></div>
+            <input type="range" class="lev" id="lev" min="1" max="${m.maxLeverage}" step="1" value="${lev}">
+            <div class="levticks">${[1, 2, 3, 5, m.maxLeverage].filter((v, i, a) => a.indexOf(v) === i).map((v) => `<button type="button" data-l="${v}">${v}×</button>`).join("")}</div></div>
+          <dl class="summary" id="sum"></dl>
+          <button class="btn btn--block" id="go" type="submit" style="height:52px"></button>
+          ${state.be.canFaucet ? `<button class="btn btn--ghost btn--block btn--sm" id="faucet" type="button" style="margin-top:10px">Get 5,000 test USDG</button>` : ""}
+          <p class="faint small" style="margin:14px 0 0">Liquidation happens when equity falls below ${Number(p?.maintenanceBps ?? 500n) / 100}% of position size. Fees: ${Number(p?.feeBps ?? 10n) / 100}% on open and on close.</p>
+        </form>
+      </div>
+    </div></section>`;
+
+    let hist = await loadHist(m.id, true);
+    if (!$("#chart")) return;
+    const fmt = { axis: (v) => pxFmt(v), value: (v) => pxFmt(v), time: (t) => new Date(t * 1000).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }), full: (t) => new Date(t * 1000).toLocaleString() };
+    const ch = chart($("#chart"), hist, fmt);
+    let positions = [];
+
+    async function refreshPositions() {
+      try { positions = await state.be.positions(); } catch (e) { console.warn(e); positions = []; }
+      if (!$("#positions")) return;
+      $("#positions").innerHTML = positionsTable(positions);
+      $("#posNote").textContent = positions.length ? `${positions.length} open` : "";
+      bindPositions($("#positions"), refreshPositions);
+      ch.setEntries(positions.filter((x) => x.marketId === m.id).flatMap((x) => [{ v: toPx(x.entryPrice), color: "#b8b2a6", label: `Entry ${x.isLong ? "long" : "short"}` }, { v: toPx(x.liqPrice), color: "#ff5a4e", label: "Liquidation" }]).filter((e) => e.v > 0));
+    }
+    let bal = null;
+    async function refreshBal() { try { bal = await state.be.balance(); } catch { bal = null; } if (!$("#bal")) return; ($("#bal").innerHTML = bal === null ? "" : `Balance ${money(toUsd(bal))} <button type="button" class="linkbtn" id="max">Max</button>`); if ($("#max")) $("#max").onclick = () => { $("#margin").value = toUsd(bal).toFixed(2); summary(); }; summary(); }
+
+    function head() {
+      const cur = state.markets[m.id];
+      $("#tPx").textContent = pxFmt(toPx(cur.price));
+      const c = change24(m.id); $("#tCh").textContent = `${pct(c)} 24h`; $("#tCh").className = c >= 0 ? "long" : "short";
+      $("#tUpd").textContent = `price ${ago(cur.updatedAt)}`;
+      state.markets.forEach((x) => { const e = $(`[data-strip="${x.id}"]`); if (e) e.textContent = pxFmt(toPx(x.price)); });
+    }
+    function summary() {
+      if (!$("#sum")) return;
+      const cur = state.markets[m.id];
+      $$("#side button").forEach((b) => (b.className = b.dataset.s === side ? `on-${side}` : ""));
+      $("#levV").textContent = `${lev}×`;
+      $$(".levticks button").forEach((b) => b.classList.toggle("on", Number(b.dataset.l) === lev));
+      const margin = parseUnits($("#margin").value) || 0n;
+      const L = BigInt(lev), feeBps = p?.feeBps ?? 10n, maint = p?.maintenanceBps ?? 500n;
+      const fee = (margin * L * feeBps) / BPS, net = margin - fee, size = net * L;
+      const e = cur.price;
+      let liq = 0n;
+      if (size > 0n) { const k = (((size * maint) / BPS - net) * e) / size; liq = side === "long" ? e + k : e - k; if (liq < 0n) liq = 0n; }
+      $("#sum").innerHTML = [["Position size", money(toUsd(size))], ["Entry price (now)", pxFmt(toPx(e))], ["Liquidation price", size > 0n ? pxFmt(toPx(liq)) : "—"], ["Opening fee", money(toUsd(fee))]].map(([a, b2]) => `<div><dt>${a}</dt><dd>${b2}</dd></div>`).join("");
+      const go = $("#go");
+      go.className = `btn btn--block ${side === "long" ? "btn--jade" : "btn--cinnabar"}`;
+      go.disabled = false;
+      if (!state.be.account) { go.textContent = "Connect wallet"; go.dataset.act = "connect"; return; }
+      go.dataset.act = "open";
+      const min = p?.minMargin ?? 5_000_000n;
+      if (!margin) { go.textContent = "Enter margin"; go.disabled = true; }
+      else if (bal !== null && margin > bal) { go.textContent = "Insufficient USDG"; go.disabled = true; }
+      else if (margin < min) { go.textContent = `Minimum ${money(toUsd(min))}`; go.disabled = true; }
+      else go.textContent = `${side === "long" ? "Long" : "Short"} ${m.symbol} · ${lev}×`;
+    }
+
+    $$("#side button").forEach((b) => (b.onclick = () => { side = b.dataset.s; summary(); }));
+    $("#lev").oninput = (e) => { lev = Number(e.target.value); ls.set("ln-lev", String(lev)); summary(); };
+    $$(".levticks button").forEach((b) => (b.onclick = () => { lev = Number(b.dataset.l); $("#lev").value = lev; ls.set("ln-lev", String(lev)); summary(); }));
+    $("#margin").oninput = (e) => { const v = e.target.value.replace(/[^\d.]/g, "").replace(/(\..*)\./g, "$1"); if (v !== e.target.value) e.target.value = v; summary(); };
+    if ($("#faucet")) $("#faucet").onclick = async () => { if (!state.be.account && !(await connect())) return; if (await run("Minting test USDG…", () => state.be.faucet())) { refreshBal(); wallet(); } };
+    $("#order").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const go = $("#go");
+      if (go.dataset.act === "connect") { await connect(); return; }
+      const margin = parseUnits($("#margin").value);
+      if (!margin) return;
+      go.disabled = true;
+      const ok = await run(`Opening ${side} ${m.symbol}…`, (st) => state.be.open(m.id, side === "long", margin, lev, st));
+      if (ok) { if ($("#margin")) $("#margin").value = ""; await loadMarkets(); await Promise.all([refreshPositions(), refreshBal()]); wallet(); }
+      summary();
+    });
+    const onWallet = () => { if ($("#order")) { refreshBal(); refreshPositions(); } };
+    document.addEventListener("ln:wallet", onWallet);
+    viewCleanup = () => document.removeEventListener("ln:wallet", onWallet);
+
+    head(); summary(); refreshBal(); refreshPositions();
+    let lastUpd = state.markets[m.id].updatedAt;
+    onTick(async () => {
+      if (!$("#chart")) return;
+      head();
+      const upd = state.markets[m.id].updatedAt;
+      if (state.be.demo || upd !== lastUpd) { lastUpd = upd; hist = await loadHist(m.id, true); if (!$("#chart")) return; ch.update(hist); }
+      summary();
+      if (positions.length || state.be.demo) refreshPositions();
+      refreshBal();
+    });
+  };
+
+  views.portfolio = async () => {
+    main.innerHTML = `<section class="page"><div class="wrap">
+      <div class="head"><div><span class="kicker">Portfolio</span><h1 class="h2">Your book</h1></div></div>
+      <div class="stats" id="pStats">${["Wallet", "Margin in positions", "Unrealised PnL", "Account value"].map((k) => `<div class="stat"><span class="label">${k}</span><div class="stat__v">—</div></div>`).join("")}</div>
+      <div class="panel" style="margin-top:14px"><span class="label">Open positions</span><div id="positions" style="margin-top:12px"></div></div>
+      <div class="panel"><span class="label">Recently closed</span><div id="closed" style="margin-top:12px"></div></div>
+    </div></section>`;
+    await loadMarkets();
+    async function refresh() {
+      if (!$("#positions")) return;
+      let pos = [], closed = [], bal = null;
+      try { [pos, closed, bal] = await Promise.all([state.be.positions(), state.be.closed(), state.be.balance()]); } catch (e) { console.warn(e); }
+      if (!$("#positions")) return;
+      const margin = pos.reduce((a, p) => a + toUsd(p.margin), 0), pnl = pos.reduce((a, p) => a + toUsd(p.pnl), 0), w = toUsd(bal);
+      const vals = state.be.account ? [money(w), money(margin), money(pnl), money(w + margin + pnl)] : ["—", "—", "—", "—"];
+      $$("#pStats .stat__v").forEach((el, i) => { el.textContent = vals[i]; if (i === 2) el.className = `stat__v ${pnl >= 0 ? "long" : "short"}`; });
+      $("#positions").innerHTML = positionsTable(pos);
+      bindPositions($("#positions"), refresh);
+      $("#closed").innerHTML = !state.be.account ? `<div class="empty"><p>Connect a wallet to see your history.</p></div>` : !closed.length ? `<div class="empty"><p>Nothing closed yet.</p></div>` :
+        `<div class="table-wrap"><table class="table"><thead><tr><th>Market</th><th>Result</th><th>Exit</th><th>PnL</th><th>Paid out</th><th>When</th></tr></thead><tbody>${closed.slice(0, 25).map((c) => {
+          const m = c.marketId !== null && c.marketId !== undefined ? state.markets[c.marketId] : null;
+          const link = c.tx ? state.be.explorerTx(c.tx) : null;
+          const when = c.closedAt ? ago(c.closedAt) : link ? `<a href="${esc(link)}" target="_blank" rel="noopener">block ${c.block}</a>` : `block ${c.block}`;
+          return `<tr><td><b>${esc(m?.symbol || "—")}</b></td><td class="${c.liquidated ? "short" : ""}">${c.liquidated ? "Liquidated" : "Closed"}</td><td>${pxFmt(toPx(c.exit))}</td><td class="${c.pnl !== null && toUsd(c.pnl) >= 0 ? "long" : "short"}">${c.pnl === null ? "—" : money(toUsd(c.pnl))}</td><td>${money(toUsd(c.payout))}</td><td class="faint">${when}</td></tr>`;
+        }).join("")}</tbody></table></div>`;
+    }
+    const onWallet = () => refresh();
+    document.addEventListener("ln:wallet", onWallet);
+    viewCleanup = () => document.removeEventListener("ln:wallet", onWallet);
+    await refresh();
+    onTick(refresh);
+  };
+
+  views.vault = async () => {
+    main.innerHTML = `<section class="page"><div class="wrap">
+      <div class="head"><div><span class="kicker">Liquidity vault</span><h1 class="h2">Be the house.</h1><p class="lead" style="margin-top:14px">The vault takes the other side of every trade. It earns all trading fees and every trader loss, and it pays every trader profit. Its share price moves with that result.</p></div></div>
+      <div class="stats" id="vStats">${["Vault assets", "Share price", "Net exposure", "Your position"].map((k) => `<div class="stat"><span class="label">${k}</span><div class="stat__v">—</div><div class="stat__s"></div></div>`).join("")}</div>
+      <div class="panel" style="margin-top:14px"><div class="fieldhead"><span class="label">Exposure used</span><span class="mono small" id="expV"></span></div><div class="risk-bar" style="margin-top:10px"><i id="expBar" style="width:0"></i></div><p class="faint small" style="margin:10px 0 0">New positions are refused when net exposure would pass the cap, and withdrawals are refused when they would leave open positions uncovered.</p></div>
+      <div class="two" style="margin-top:14px">
+        <form class="panel" id="dep" novalidate><span class="label">Deposit</span><div class="field"><div class="fieldhead"><label class="faint small" for="depAmt">USDG</label><span class="faint small" id="depBal"></span></div><div class="amount"><input id="depAmt" inputmode="decimal" placeholder="0.00"><span>USDG</span></div></div><button class="btn btn--amber btn--block" style="margin-top:16px" type="submit">Deposit</button></form>
+        <form class="panel" id="wd" novalidate><span class="label">Withdraw</span><div class="field"><div class="fieldhead"><label class="faint small" for="wdAmt">Shares (LNV)</label><span class="faint small" id="wdBal"></span></div><div class="amount"><input id="wdAmt" inputmode="decimal" placeholder="0.00"><span>LNV</span></div></div><button class="btn btn--ghost btn--block" style="margin-top:16px" type="submit">Withdraw</button></form>
+      </div>
+      <p class="note" style="margin-top:24px">Vault depositors lose money when traders win. The share price only counts closed results, so it can jump when large positions close.</p>
+    </div></section>`;
+    await loadMarkets();
+    const SH = 10n ** 18n; // demo shares use collateral units; chain shares use 18 decimals
+    let v = null;
+    const shareDec = () => (state.be.demo ? dec() : 18);
+    async function refresh() {
+      if (!$("#vStats")) return;
+      try { v = await state.be.vault(); } catch (e) { console.warn(e); return; }
+      if (!$("#vStats")) return;
+      const assets = toUsd(v.assets), supply = Number(v.supply) / 10 ** shareDec();
+      const sp = supply ? assets / supply : 1, mine = v.mine === null ? null : Number(v.mine) / 10 ** shareDec();
+      const cap = Number(state.params?.maxNetExposureBps ?? 5000n) / 10000;
+      const used = assets ? toUsd(v.net) / (assets * cap) : 0;
+      const vals = [[money(assets), "USDG"], [`$${sp.toFixed(4)}`, "per LNV share"], [money(toUsd(v.net)), `cap ${money(assets * cap)}`], [mine === null ? "—" : money(mine * sp), mine === null ? "connect to see" : `${mine.toLocaleString("en-US", { maximumFractionDigits: 2 })} LNV`]];
+      $$("#vStats .stat").forEach((s, i) => { $(".stat__v", s).textContent = vals[i][0]; $(".stat__s", s).textContent = vals[i][1]; });
+      $("#expBar").style.width = `${Math.min(100, used * 100).toFixed(1)}%`;
+      $("#expV").textContent = `${(used * 100).toFixed(1)}%`;
+      const bal = await state.be.balance().catch(() => null);
+      if (!$("#depBal")) return;
+      $("#depBal").textContent = bal === null ? "" : `Wallet ${money(toUsd(bal))}`;
+      $("#wdBal").innerHTML = mine === null ? "" : `You hold ${mine.toLocaleString("en-US", { maximumFractionDigits: 4 })} <button type="button" class="linkbtn" id="wdMax">Max</button>`;
+      if ($("#wdMax")) $("#wdMax").onclick = () => { $("#wdAmt").value = ethers.formatUnits(v.mine, shareDec()); $("#wdAmt").dataset.exact = v.mine.toString(); };
+    }
+    $("#wdAmt").addEventListener("input", (e) => delete e.target.dataset.exact);
+    $("#dep").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!state.be.account && !(await connect())) return;
+      const a = parseUnits($("#depAmt").value);
+      if (!a) { toast("err", "Enter an amount", "How much USDG to deposit."); return; }
+      if (await run("Depositing…", (st) => state.be.deposit(a, st))) { if ($("#depAmt")) $("#depAmt").value = ""; refresh(); wallet(); }
+    });
+    $("#wd").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!state.be.account && !(await connect())) return;
+      const el = $("#wdAmt");
+      let s = null;
+      if (el.dataset.exact) s = BigInt(el.dataset.exact);
+      else { try { s = el.value ? ethers.parseUnits(el.value.trim(), shareDec()) : null; } catch { s = null; } }
+      if (!s) { toast("err", "Enter an amount", "How many shares to withdraw."); return; }
+      if (await run("Withdrawing…", (st) => state.be.withdraw(s, st))) { el.value = ""; delete el.dataset.exact; refresh(); wallet(); }
+    });
+    const onWallet = () => refresh();
+    document.addEventListener("ln:wallet", onWallet);
+    viewCleanup = () => document.removeEventListener("ln:wallet", onWallet);
+    void SH;
+    await refresh();
+    onTick(refresh);
+  };
+
+  const prose = (kicker, title, html) => { main.innerHTML = `<section class="page"><div class="wrap"><span class="kicker">${kicker}</span><h1 class="h2" style="margin-bottom:28px">${title}</h1><article class="prose">${html}</article></div></section>`; };
+
+  views.learn = () => prose("Learn", "How Lantern works", `
+    <p>Lantern lets you take a leveraged long or short position on the price of eight Chinese companies listed in the United States. You post USDG as margin. You never hold the shares; your position only tracks the price.</p>
+    <h2>Opening a position</h2>
+    <p>Choose a market, a side and a leverage between 1× and 10×. The opening fee is 0.1% of the position size, taken from your margin. What is left is your margin, and the position size is that margin times your leverage.</p>
+    <div class="formula">fee  = margin × leverage × 0.1%<br>size = (margin − fee) × leverage</div>
+    <h2>Profit and loss</h2>
+    <div class="formula">long PnL  = size × (price − entry) ÷ entry<br>short PnL = size × (entry − price) ÷ entry</div>
+    <p>Closing charges another 0.1% of size. You receive margin + PnL − fee, never less than zero.</p>
+    <h2>Liquidation</h2>
+    <p>If your equity (margin + PnL) falls below 5% of the position size, anyone can liquidate the position. The liquidator receives up to 0.5% of size from what remains, and the rest goes to the vault. At 10× leverage a move of about 5% against you is enough. Adding margin moves your liquidation price away.</p>
+    <h2>Prices</h2>
+    <p>Prices come from an on-chain oracle that authorised keepers update. The exchange refuses to trade on a price older than one hour, and a single update can't move a price more than 20%. Outside US market hours the oracle holds the last price, so positions can gap when trading resumes.</p>
+    <h2>The vault</h2>
+    <p>Liquidity providers deposit USDG into the vault and receive LNV shares. The vault is the counterparty to every trade. Total net exposure across markets is capped at 50% of vault assets.</p>
+    <h2>Contracts</h2>
+    <p><code>PriceOracle.sol</code> stores keeper prices, and <code>LanternExchange.sol</code> holds margin, positions and the vault. Both are MIT licensed, tested, and not yet audited.</p>`);
+
+  views.risk = () => prose("Risk disclosure", "Read this before trading", `
+    <p><b>Leverage multiplies losses.</b> At 10× a 10% move against you wipes out your margin. Liquidation can happen quickly, especially when prices gap after a market closure.</p>
+    <h3>No ownership, no affiliation</h3><p>Positions are synthetic. You have no rights to the shares, dividends or votes. Lantern is not affiliated with, endorsed by, or a broker for any listed company.</p>
+    <h3>Oracle risk</h3><p>Prices come from keepers. A delayed, wrong or manipulated price can cause unfair liquidations or payouts.</p>
+    <h3>Counterparty and vault risk</h3><p>Profits are paid from the vault. In extreme cases the vault can run out, and payouts are capped at what it holds.</p>
+    <h3>Smart-contract risk</h3><p>The contracts are tested but not formally audited. Bugs could lead to loss of funds.</p>
+    <h3>Legal</h3><p>Leveraged products that reference equities are regulated or prohibited in many countries. Make sure you are allowed to use this where you live. Nothing here is investment advice.</p>`);
+
+  views.notfound = () => { main.innerHTML = `<section class="page"><div class="wrap"><div class="empty"><h1 class="h2">Nothing here</h1><p>That page doesn't exist.</p><a class="btn" href="#/">Home</a></div></div></section>`; };
+
+  // ───────────────────────── router ─────────────────────────
+  let viewCleanup = null;
+  function route() {
+    const raw = location.hash.replace(/^#/, "") || "/";
+    const [path, qs] = raw.split("?");
+    const params = new URLSearchParams(qs || "");
+    const parts = path.split("/").filter(Boolean);
+    let view = "home", arg;
+    if (!parts.length) view = "home";
+    else if (parts[0] === "trade" && parts[1]) { view = "trade"; arg = parts[1]; }
+    else if (parts[0] === "trade") { view = "trade"; arg = "BABA"; }
+    else if (["markets", "portfolio", "vault", "learn", "risk"].includes(parts[0])) view = parts[0];
+    else view = "notfound";
+    if (viewCleanup) { viewCleanup(); viewCleanup = null; }
+    viewTick = null;
+    clearInterval(clockTimer);
+    $$("[data-nav]").forEach((a) => a.classList.toggle("is-on", a.dataset.nav === view || (view === "trade" && a.dataset.nav === "markets")));
+    $("#nav").classList.remove("is-open"); $("#burger").setAttribute("aria-expanded", "false");
+    window.scrollTo(0, 0);
+    document.title = `Lantern — ${{ home: "the night desk for China's giants", markets: "Markets", trade: `${String(arg).toUpperCase()}`, portfolio: "Portfolio", vault: "Vault", learn: "How it works", risk: "Risk disclosure", notfound: "Not found" }[view]}`;
+    Promise.resolve(views[view](params, arg)).catch((e) => { console.error(e); toast("err", "Something broke", B.friendly(e)); });
+  }
+
+  // ───────────────────────── chrome ─────────────────────────
+  const nav = $("#nav");
+  addEventListener("scroll", () => nav.classList.toggle("is-scrolled", scrollY > 8), { passive: true });
+  $("#burger").onclick = () => { const o = !nav.classList.contains("is-open"); nav.classList.toggle("is-open", o); $("#burger").setAttribute("aria-expanded", String(o)); };
+  const nets = B.networks();
+  $$(".net").forEach((s) => {
+    s.innerHTML = nets.map((n) => `<option value="${esc(n.key)}">${esc(n.name)}</option>`).join("");
+    s.onchange = () => { setNet(nets.find((n) => n.key === s.value)); startFeed(); };
+  });
+  $("#year").textContent = new Date().getFullYear();
+  addEventListener("hashchange", route);
+
+  const saved = nets.find((n) => n.key === ls.get("ln-net"));
+  const isLocal = ["localhost", "127.0.0.1"].includes(location.hostname);
+  const firstLive = nets.find((n) => !n.demo && (n.chainId !== 31337 || isLocal));
+  setNet(saved && (saved.demo || saved.chainId !== 31337 || isLocal) ? saved : firstLive || nets.find((n) => n.demo), true);
+  startFeed();
+  route();
+
+  window.LN_APP = { state, route };
+})();
